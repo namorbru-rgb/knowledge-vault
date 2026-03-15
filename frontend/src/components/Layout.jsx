@@ -2,12 +2,12 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: '🏠', exact: true },
+  { to: '/', label: 'Übersicht', icon: '🏠', exact: true },
   { to: '/videos', label: 'Videos', icon: '🎬' },
   { to: '/links', label: 'Links', icon: '🔗' },
-  { to: '/photos', label: 'Photos', icon: '📷' },
-  { to: '/notes', label: 'Notes', icon: '📝' },
-  { to: '/search', label: 'Search', icon: '🔍' },
+  { to: '/photos', label: 'Fotos', icon: '📷' },
+  { to: '/notes', label: 'Notizen', icon: '📝' },
+  { to: '/search', label: 'Suche', icon: '🔍' },
 ]
 
 export default function Layout({ session }) {
@@ -38,7 +38,7 @@ export default function Layout({ session }) {
         <div className="p-3 border-t border-slate-700">
           <button onClick={handleLogout}
             className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
-            ← Logout
+            ← Abmelden
           </button>
         </div>
       </aside>

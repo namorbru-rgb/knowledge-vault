@@ -12,8 +12,8 @@ export default function VideoDetailPage() {
     api.getVideo(id).then(setVideo).catch(console.error).finally(() => setLoading(false))
   }, [id])
 
-  if (loading) return <div className="p-8 text-slate-400">Loading...</div>
-  if (!video) return <div className="p-8 text-red-400">Video not found</div>
+  if (loading) return <div className="p-8 text-slate-400">Lädt...</div>
+  if (!video) return <div className="p-8 text-red-400">Video nicht gefunden</div>
 
   const filteredSegments = (video.segments || []).filter(s =>
     !search || s.text.toLowerCase().includes(search.toLowerCase())
@@ -27,7 +27,7 @@ export default function VideoDetailPage() {
 
   return (
     <div className="p-8">
-      <Link to="/videos" className="text-blue-400 hover:text-blue-300 text-sm mb-4 block">← Back to Videos</Link>
+      <Link to="/videos" className="text-blue-400 hover:text-blue-300 text-sm mb-4 block">← Zurück zu Videos</Link>
 
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 mb-6">
         <div className="flex gap-4">
@@ -48,8 +48,8 @@ export default function VideoDetailPage() {
       {video.segments && video.segments.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-white">Transcript ({video.segments.length} segments)</h3>
-            <input type="text" placeholder="Search transcript..." value={search} onChange={e => setSearch(e.target.value)}
+            <h3 className="font-semibold text-white">Transkript ({video.segments.length} Abschnitte)</h3>
+            <input type="text" placeholder="Transkript durchsuchen..." value={search} onChange={e => setSearch(e.target.value)}
               className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -65,8 +65,8 @@ export default function VideoDetailPage() {
 
       {video.transcript_status === 'pending' && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
-          <p className="text-slate-400">⏳ Transcript is being processed...</p>
-          <p className="text-xs text-slate-500 mt-2">This may take a few minutes depending on video length.</p>
+          <p className="text-slate-400">⏳ Transkript wird verarbeitet...</p>
+          <p className="text-xs text-slate-500 mt-2">Dies kann je nach Videolänge einige Minuten dauern.</p>
         </div>
       )}
     </div>

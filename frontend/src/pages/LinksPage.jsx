@@ -29,7 +29,7 @@ export default function LinksPage() {
   }
 
   async function deleteLink(id) {
-    if (!confirm('Delete this link?')) return
+    if (!confirm('Diesen Link löschen?')) return
     await api.deleteLink(id)
     setLinks(prev => prev.filter(l => l.id !== id))
   }
@@ -42,13 +42,13 @@ export default function LinksPage() {
           className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
         <button type="submit" disabled={adding}
           className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors">
-          {adding ? 'Adding...' : 'Save Link'}
+          {adding ? 'Wird gespeichert...' : 'Link speichern'}
         </button>
       </form>
       {error && <p className="text-red-400 mb-4">{error}</p>}
-      {loading ? <p className="text-slate-400">Loading...</p> : (
+      {loading ? <p className="text-slate-400">Lädt...</p> : (
         <div className="grid md:grid-cols-2 gap-4">
-          {links.length === 0 && <p className="text-slate-400">No links yet. Save your first URL above!</p>}
+          {links.length === 0 && <p className="text-slate-400">Noch keine Links. Ersten URL oben speichern!</p>}
           {links.map(link => (
             <div key={link.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
               <div className="flex justify-between items-start">
@@ -68,9 +68,9 @@ export default function LinksPage() {
               )}
               <div className="flex items-center gap-3 mt-3">
                 <span className={`text-xs ${link.status === 'done' ? 'text-green-400' : link.status === 'error' ? 'text-red-400' : 'text-yellow-400'}`}>
-                  {link.status === 'done' ? '✅' : link.status === 'error' ? '❌' : '⏳'} {link.status}
+                  {link.status === 'done' ? '✅' : link.status === 'error' ? '❌' : '⏳'} {link.status === 'done' ? 'Fertig' : link.status === 'error' ? 'Fehler' : 'Verarbeitung'}
                 </span>
-                <span className="text-xs text-slate-600">{new Date(link.created_at).toLocaleDateString()}</span>
+                <span className="text-xs text-slate-600">{new Date(link.created_at).toLocaleDateString('de-DE')}</span>
               </div>
             </div>
           ))}

@@ -33,25 +33,25 @@ export default function PhotosPage() {
   }
 
   async function deletePhoto(id) {
-    if (!confirm('Delete this photo?')) return
+    if (!confirm('Dieses Foto löschen?')) return
     await api.deletePhoto(id)
     setPhotos(prev => prev.filter(p => p.id !== id))
   }
 
   return (
     <div className="p-8">
-      <h2 className="text-2xl font-bold text-white mb-6">Photos</h2>
+      <h2 className="text-2xl font-bold text-white mb-6">Fotos</h2>
       <div className="mb-8">
         <button onClick={() => fileRef.current?.click()} disabled={uploading}
           className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors">
-          {uploading ? 'Uploading...' : '📷 Upload Photos'}
+          {uploading ? 'Wird hochgeladen...' : '📷 Fotos hochladen'}
         </button>
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
       </div>
       {error && <p className="text-red-400 mb-4">{error}</p>}
-      {loading ? <p className="text-slate-400">Loading...</p> : (
+      {loading ? <p className="text-slate-400">Lädt...</p> : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {photos.length === 0 && <p className="text-slate-400 col-span-full">No photos yet. Upload some!</p>}
+          {photos.length === 0 && <p className="text-slate-400 col-span-full">Noch keine Fotos. Lade welche hoch!</p>}
           {photos.map(photo => (
             <div key={photo.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden group">
               {photo.public_url ? (

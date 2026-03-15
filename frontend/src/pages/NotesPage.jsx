@@ -37,26 +37,26 @@ export default function NotesPage() {
   }
 
   async function deleteNote(id) {
-    if (!confirm('Delete this note?')) return
+    if (!confirm('Diese Notiz löschen?')) return
     await api.deleteNote(id)
     setNotes(prev => prev.filter(n => n.id !== id))
   }
 
   return (
     <div className="p-8">
-      <h2 className="text-2xl font-bold text-white mb-6">Notes</h2>
+      <h2 className="text-2xl font-bold text-white mb-6">Notizen</h2>
       <form onSubmit={addNote} className="mb-8">
-        <textarea placeholder="Write a note..." value={content} onChange={e => setContent(e.target.value)} rows={4}
+        <textarea placeholder="Notiz schreiben..." value={content} onChange={e => setContent(e.target.value)} rows={4}
           className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 resize-none" />
         <button type="submit" disabled={adding || !content.trim()}
           className="mt-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors">
-          {adding ? 'Saving...' : 'Add Note'}
+          {adding ? 'Wird gespeichert...' : 'Neue Notiz'}
         </button>
       </form>
       {error && <p className="text-red-400 mb-4">{error}</p>}
-      {loading ? <p className="text-slate-400">Loading...</p> : (
+      {loading ? <p className="text-slate-400">Lädt...</p> : (
         <div className="space-y-4">
-          {notes.length === 0 && <p className="text-slate-400">No notes yet. Write your first note!</p>}
+          {notes.length === 0 && <p className="text-slate-400">Noch keine Notizen. Erste Notiz oben schreiben!</p>}
           {notes.map(note => (
             <div key={note.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
               {editing === note.id ? (
@@ -64,15 +64,15 @@ export default function NotesPage() {
                   <textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={4}
                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 resize-none" />
                   <div className="flex gap-2 mt-2">
-                    <button onClick={() => saveEdit(note.id)} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg">Save</button>
-                    <button onClick={() => setEditing(null)} className="px-4 py-1.5 bg-slate-700 text-slate-300 text-sm rounded-lg">Cancel</button>
+                    <button onClick={() => saveEdit(note.id)} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg">Speichern</button>
+                    <button onClick={() => setEditing(null)} className="px-4 py-1.5 bg-slate-700 text-slate-300 text-sm rounded-lg">Abbrechen</button>
                   </div>
                 </div>
               ) : (
                 <div>
                   <p className="text-slate-200 whitespace-pre-wrap">{note.content}</p>
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-xs text-slate-600">{new Date(note.created_at).toLocaleString()}</span>
+                    <span className="text-xs text-slate-600">{new Date(note.created_at).toLocaleString('de-DE')}</span>
                     <div className="flex gap-2">
                       <button onClick={() => { setEditing(note.id); setEditContent(note.content) }}
                         className="text-slate-500 hover:text-blue-400 transition-colors text-sm">✏️</button>
