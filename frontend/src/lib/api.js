@@ -1,55 +1,138 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://187.124.18.102:3100'
+// Direct Supabase API — no backend server needed
+import { createClient } from '@supabase/supabase-js'
 
-let authToken = null
+const SB_URL = 'https://nixakeaiibzhesdwtelw.supabase.co'
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peGFrZWFpaWJ6aGVzZHd0ZWx3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTE2OTI2NCwiZXhwIjoyMDg2NzQ1MjY0fQ.Rpgzwxi_8uGfzKbL8R0g_yzXZYYWvkzNdG_2XVGi_hI'
+
+const sb = createClient(SB_URL, SB_KEY)
+
+let _userId = null
 
 export function setAuthToken(token) {
-  authToken = token
+  // Decode JWT to get user_id
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    _userId = payload.sub
+  } catch(e) {}
 }
 
-async function request(method, path, body, isFormData = false) {
-  const headers = {}
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`
-  if (!isFormData) headers['Content-Type'] = 'application/json'
-
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers,
-    body: isFormData ? body : (body ? JSON.stringify(body) : undefined)
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || 'Request failed')
-  }
-  return res.json()
-}
+function uid() { return _userId }
 
 export const api = {
-  get: (path) => request('GET', path),
-  post: (path, body) => request('POST', path, body),
-  put: (path, body) => request('PUT', path, body),
-  delete: (path) => request('DELETE', path),
-  postForm: (path, formData) => request('POST', path, formData, true),
   // Stats
-  getStats: () => request('GET', '/api/stats'),
+  getStats: async () => {
+    const u = uid()
+    const [v, l, p, n] = await Promise.all([
+      sb.from('kv_videos').select('id', { count: 'exact', head: true }).eq('user_id', u),
+      sb.from('kv_links').select('id', { count: 'exact', head: true }).eq('user_id', u),
+      sb.from('kv_photos').select('id', { count: 'exact', head: true }).eq('user_id', u),
+      sb.from('kv_notes').select('id', { count: 'exact', head: true }).eq('user_id', u),
+    ])
+    return { videos: v.count||0, links: l.count||0, photos: p.count||0, notes: n.count||0 }
+  },
+
   // Videos
-  getVideos: () => request('GET', '/api/videos'),
-  getVideo: (id) => request('GET', `/api/videos/${id}`),
-  addVideo: (url, title) => request('POST', '/api/videos', { url, title }),
-  deleteVideo: (id) => request('DELETE', `/api/videos/${id}`),
+  getVideos: async () => {
+    const { data, error } = await sb.from('kv_videos').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+  getVideo: async (id) => {
+    const { data } = await sb.from('kv_videos').select('*, segments:kv_video_segments(*)').eq('id', id).single()
+    return data
+  },
+  addVideo: async (url, title) => {
+    const { data, error } = await sb.from('kv_videos').insert({ url, title: title||url, user_id: uid(), status: 'pending', created_at: new Date().toISOString() }).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  deleteVideo: async (id) => {
+    const { error } = await sb.from('kv_videos').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+
   // Links
-  getLinks: () => request('GET', '/api/links'),
-  addLink: (url, title) => request('POST', '/api/links', { url, title }),
-  deleteLink: (id) => request('DELETE', `/api/links/${id}`),
+  getLinks: async () => {
+    const { data, error } = await sb.from('kv_links').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+  addLink: async (url, title) => {
+    const { data, error } = await sb.from('kv_links').insert({ url, title: title||url, user_id: uid(), created_at: new Date().toISOString() }).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  deleteLink: async (id) => {
+    const { error } = await sb.from('kv_links').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+
   // Photos
-  getPhotos: () => request('GET', '/api/photos'),
-  uploadPhoto: (formData) => request('POST', '/api/photos', formData, true),
-  deletePhoto: (id) => request('DELETE', `/api/photos/${id}`),
+  getPhotos: async () => {
+    const { data, error } = await sb.from('kv_photos').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    // Generate public URLs
+    return (data || []).map(p => ({
+      ...p,
+      url: p.storage_path ? sb.storage.from('kv-media').getPublicUrl(p.storage_path).data?.publicUrl : null
+    }))
+  },
+  uploadPhoto: async (formData) => {
+    const file = formData.get('photo')
+    if (!file) throw new Error('No file')
+    const path = `${uid()}/${Date.now()}_${file.name}`
+    const { error: upErr } = await sb.storage.from('kv-media').upload(path, file, { contentType: file.type })
+    if (upErr) throw new Error(upErr.message)
+    const { data, error } = await sb.from('kv_photos').insert({ storage_path: path, filename: file.name, user_id: uid(), created_at: new Date().toISOString() }).select().single()
+    if (error) throw new Error(error.message)
+    return { ...data, url: sb.storage.from('kv-media').getPublicUrl(path).data?.publicUrl }
+  },
+  deletePhoto: async (id) => {
+    const { error } = await sb.from('kv_photos').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+
   // Notes
-  getNotes: () => request('GET', '/api/notes'),
-  addNote: (content, refs) => request('POST', '/api/notes', { content, ...refs }),
-  updateNote: (id, content) => request('PUT', `/api/notes/${id}`, { content }),
-  deleteNote: (id) => request('DELETE', `/api/notes/${id}`),
+  getNotes: async () => {
+    const { data, error } = await sb.from('kv_notes').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+  addNote: async (content, refs) => {
+    const { data, error } = await sb.from('kv_notes').insert({ content, ...refs, user_id: uid(), created_at: new Date().toISOString() }).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  updateNote: async (id, content) => {
+    const { data, error } = await sb.from('kv_notes').update({ content, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', uid()).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  deleteNote: async (id) => {
+    const { error } = await sb.from('kv_notes').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+
   // Search
-  search: (query, types) => request('POST', '/api/search', { query, types }),
+  search: async (query, types) => {
+    const u = uid()
+    const results = []
+    if (!types || types.includes('notes')) {
+      const { data } = await sb.from('kv_notes').select('id,content,created_at').eq('user_id', u).ilike('content', `%${query}%`).limit(10)
+      ;(data||[]).forEach(r => results.push({ type: 'note', ...r }))
+    }
+    if (!types || types.includes('links')) {
+      const { data } = await sb.from('kv_links').select('id,title,url,created_at').eq('user_id', u).or(`title.ilike.%${query}%,url.ilike.%${query}%`).limit(10)
+      ;(data||[]).forEach(r => results.push({ type: 'link', ...r }))
+    }
+    if (!types || types.includes('videos')) {
+      const { data } = await sb.from('kv_videos').select('id,title,url,created_at').eq('user_id', u).ilike('title', `%${query}%`).limit(10)
+      ;(data||[]).forEach(r => results.push({ type: 'video', ...r }))
+    }
+    return results
+  },
 }
