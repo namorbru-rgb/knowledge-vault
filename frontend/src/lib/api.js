@@ -1,25 +1,22 @@
-// Direct Supabase API — no backend server needed
-import { createClient } from '@supabase/supabase-js'
-
-const SB_URL = 'https://nixakeaiibzhesdwtelw.supabase.co'
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5peGFrZWFpaWJ6aGVzZHd0ZWx3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTE2OTI2NCwiZXhwIjoyMDg2NzQ1MjY0fQ.Rpgzwxi_8uGfzKbL8R0g_yzXZYYWvkzNdG_2XVGi_hI'
-
-const sb = createClient(SB_URL, SB_KEY)
+// Direkte Supabase-Aufrufe mit dem authentifizierten Client des Nutzers.
+// Wir verwenden bewusst NICHT den service_role-Schlüssel im Browser – RLS
+// stellt sicher, dass jeder Nutzer nur seine eigenen Daten sieht.
+import { supabase as sb } from './supabase'
 
 let _userId = null
 
 export function setAuthToken(token) {
-  // Decode JWT to get user_id
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
     _userId = payload.sub
-  } catch(e) {}
+  } catch (e) {
+    _userId = null
+  }
 }
 
 function uid() { return _userId }
 
 export const api = {
-  // Stats
   getStats: async () => {
     const u = uid()
     const [v, l, p, n] = await Promise.all([
@@ -31,7 +28,6 @@ export const api = {
     return { videos: v.count||0, links: l.count||0, photos: p.count||0, notes: n.count||0 }
   },
 
-  // Videos
   getVideos: async () => {
     const { data, error } = await sb.from('kv_videos').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -52,7 +48,6 @@ export const api = {
     return {}
   },
 
-  // Links
   getLinks: async () => {
     const { data, error } = await sb.from('kv_links').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -69,33 +64,38 @@ export const api = {
     return {}
   },
 
-  // Photos
   getPhotos: async () => {
     const { data, error } = await sb.from('kv_photos').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
-    // Generate public URLs
     return (data || []).map(p => ({
       ...p,
-      url: p.storage_path ? sb.storage.from('kv-media').getPublicUrl(p.storage_path).data?.publicUrl : null
+      public_url: p.storage_path ? sb.storage.from('kv-media').getPublicUrl(p.storage_path).data?.publicUrl : null,
     }))
   },
   uploadPhoto: async (formData) => {
     const file = formData.get('photo')
-    if (!file) throw new Error('No file')
-    const path = `${uid()}/${Date.now()}_${file.name}`
-    const { error: upErr } = await sb.storage.from('kv-media').upload(path, file, { contentType: file.type })
+    if (!file) throw new Error('Keine Datei')
+    const safeName = file.name.replace(/[^\w.\-]+/g, '_')
+    const path = `${uid()}/${Date.now()}_${safeName}`
+    const { error: upErr } = await sb.storage.from('kv-media').upload(path, file, { contentType: file.type, upsert: false })
     if (upErr) throw new Error(upErr.message)
-    const { data, error } = await sb.from('kv_photos').insert({ storage_path: path, filename: file.name, user_id: uid(), created_at: new Date().toISOString() }).select().single()
+    const { data, error } = await sb.from('kv_photos').insert({
+      storage_path: path,
+      filename: file.name,
+      user_id: uid(),
+      created_at: new Date().toISOString(),
+    }).select().single()
     if (error) throw new Error(error.message)
-    return { ...data, url: sb.storage.from('kv-media').getPublicUrl(path).data?.publicUrl }
+    return { ...data, public_url: sb.storage.from('kv-media').getPublicUrl(path).data?.publicUrl }
   },
   deletePhoto: async (id) => {
+    const { data: p } = await sb.from('kv_photos').select('storage_path').eq('id', id).eq('user_id', uid()).single()
+    if (p?.storage_path) await sb.storage.from('kv-media').remove([p.storage_path])
     const { error } = await sb.from('kv_photos').delete().eq('id', id).eq('user_id', uid())
     if (error) throw new Error(error.message)
     return {}
   },
 
-  // Notes
   getNotes: async () => {
     const { data, error } = await sb.from('kv_notes').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -117,7 +117,6 @@ export const api = {
     return {}
   },
 
-  // Search
   search: async (query, types) => {
     const u = uid()
     const results = []
