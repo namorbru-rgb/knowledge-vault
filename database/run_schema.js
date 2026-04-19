@@ -5,8 +5,15 @@
 const fs = require('fs');
 const https = require('https');
 
-const SUPABASE_ACCESS_TOKEN = 'sbp_c750f3b8c0e6515f346cc9ba01e150b9b1d05ac9';
-const PROJECT_REF = 'nixakeaiibzhesdwtelw';
+// Usage: SUPABASE_ACCESS_TOKEN=sbp_... node run_schema.js
+const SUPABASE_ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
+const PROJECT_REF = process.env.SUPABASE_PROJECT_REF || 'nixakeaiibzhesdwtelw';
+
+if (!SUPABASE_ACCESS_TOKEN) {
+  console.error('❌ SUPABASE_ACCESS_TOKEN environment variable is required.');
+  console.error('   Create a token at https://app.supabase.com/account/tokens');
+  process.exit(1);
+}
 
 const sql = fs.readFileSync(__dirname + '/schema.sql', 'utf8');
 
