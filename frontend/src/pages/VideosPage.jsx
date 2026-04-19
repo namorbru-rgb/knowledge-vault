@@ -41,15 +41,16 @@ export default function VideosPage() {
   const statusLabels = { done: '✅ Transkribiert', error: '❌ Fehler', processing: '⏳ Wird verarbeitet', pending: '🕐 Ausstehend' }
 
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold text-white mb-6">Videos</h2>
+    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
+      <h2 className="text-2xl font-bold text-white mb-4 sm:mb-6">Videos</h2>
 
-      <form onSubmit={addVideo} className="flex gap-3 mb-8">
-        <input type="url" placeholder="YouTube- oder Video-URL..." value={url} onChange={e => setUrl(e.target.value)}
+      <form onSubmit={addVideo} className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-6 sm:mb-8">
+        <input type="url" inputMode="url" autoCapitalize="none" autoCorrect="off"
+          placeholder="YouTube- oder Video-URL…" value={url} onChange={e => setUrl(e.target.value)}
           className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
         <button type="submit" disabled={adding}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors">
-          {adding ? 'Wird hinzugefügt...' : 'Video hinzufügen'}
+          className="px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors whitespace-nowrap">
+          {adding ? 'Wird hinzugefügt…' : 'Video hinzufügen'}
         </button>
       </form>
 

@@ -121,17 +121,41 @@ export const api = {
     const u = uid()
     const results = []
     if (!types || types.includes('notes')) {
-      const { data } = await sb.from('kv_notes').select('id,content,created_at').eq('user_id', u).ilike('content', `%${query}%`).limit(10)
-      ;(data||[]).forEach(r => results.push({ type: 'note', ...r }))
+      const { data } = await sb.from('kv_notes')
+        .select('id,content,created_at')
+        .eq('user_id', u).ilike('content', `%${query}%`).limit(10)
+      ;(data||[]).forEach(r => results.push({ type: 'note', id: r.id, title: r.content.slice(0, 60), content: r.content, created_at: r.created_at }))
     }
     if (!types || types.includes('links')) {
-      const { data } = await sb.from('kv_links').select('id,title,url,created_at').eq('user_id', u).or(`title.ilike.%${query}%,url.ilike.%${query}%`).limit(10)
-      ;(data||[]).forEach(r => results.push({ type: 'link', ...r }))
+      const { data } = await sb.from('kv_links')
+        .select('id,title,url,summary,created_at')
+        .eq('user_id', u)
+        .or(`title.ilike.%${query}%,url.ilike.%${query}%,summary.ilike.%${query}%`)
+        .limit(10)
+      ;(data||[]).forEach(r => results.push({ type: 'link', id: r.id, title: r.title || r.url, url: r.url, content: r.summary, created_at: r.created_at }))
     }
     if (!types || types.includes('videos')) {
-      const { data } = await sb.from('kv_videos').select('id,title,url,created_at').eq('user_id', u).ilike('title', `%${query}%`).limit(10)
-      ;(data||[]).forEach(r => results.push({ type: 'video', ...r }))
+      const { data: vTitle } = await sb.from('kv_videos')
+        .select('id,title,url,description,thumbnail_url,created_at')
+        .eq('user_id', u).ilike('title', `%${query}%`).limit(10)
+      ;(vTitle||[]).forEach(r => results.push({ type: 'video', id: r.id, title: r.title || r.url, url: r.url, content: r.description, thumbnail_url: r.thumbnail_url, created_at: r.created_at }))
+
+      const { data: segs } = await sb.from('kv_video_segments')
+        .select('id,video_id,start_time,end_time,text,kv_videos!inner(title,url,thumbnail_url,created_at)')
+        .eq('user_id', u).ilike('text', `%${query}%`).limit(30)
+      ;(segs||[]).forEach(r => results.push({
+        type: 'video_segment',
+        id: `seg-${r.id}`,
+        video_id: r.video_id,
+        title: r.kv_videos?.title || r.kv_videos?.url,
+        url: r.kv_videos?.url,
+        thumbnail_url: r.kv_videos?.thumbnail_url,
+        content: r.text,
+        start_time: r.start_time,
+        end_time: r.end_time,
+        created_at: r.kv_videos?.created_at,
+      }))
     }
-    return results
+    return { results, mode: 'text' }
   },
 }
