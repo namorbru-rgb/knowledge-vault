@@ -38,7 +38,7 @@ export const api = {
     return data
   },
   addVideo: async (url, title) => {
-    const { data, error } = await sb.from('kv_videos').insert({ url, title: title||url, user_id: uid(), status: 'pending', created_at: new Date().toISOString() }).select().single()
+    const { data, error } = await sb.from('kv_videos').insert({ url, title: title||url, user_id: uid(), transcript_status: 'pending', created_at: new Date().toISOString() }).select().single()
     if (error) throw new Error(error.message)
     return data
   },
