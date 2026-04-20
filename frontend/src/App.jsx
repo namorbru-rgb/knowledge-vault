@@ -10,6 +10,7 @@ import LinksPage from './pages/LinksPage'
 import PhotosPage from './pages/PhotosPage'
 import NotesPage from './pages/NotesPage'
 import SearchPage from './pages/SearchPage'
+import SettingsPage from './pages/SettingsPage'
 import Layout from './components/Layout'
 
 function ProtectedRoute({ children, session }) {
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="photos" element={<PhotosPage />} />
         <Route path="notes" element={<NotesPage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   )
