@@ -9,6 +9,7 @@ const navItems = [
   { to: '/photos', label: 'Fotos', icon: '📷' },
   { to: '/notes', label: 'Notizen', icon: '📝' },
   { to: '/search', label: 'Suche', icon: '🔍' },
+  { to: '/settings', label: 'Einstellungen', icon: '⚙️' },
 ]
 
 export default function Layout({ session }) {

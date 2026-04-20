@@ -58,8 +58,41 @@ export const api = {
     if (error) throw new Error(error.message)
     return data
   },
+  updateLink: async (id, patch) => {
+    const allowed = {}
+    if ('title' in patch) allowed.title = patch.title
+    if ('notes' in patch) allowed.notes = patch.notes
+    if ('category_id' in patch) allowed.category_id = patch.category_id
+    const { data, error } = await sb.from('kv_links').update(allowed).eq('id', id).eq('user_id', uid()).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
   deleteLink: async (id) => {
     const { error } = await sb.from('kv_links').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+
+  getCategories: async () => {
+    const { data, error } = await sb.from('kv_categories').select('*').eq('user_id', uid()).order('name')
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+  addCategory: async (name, color) => {
+    const { data, error } = await sb.from('kv_categories').insert({ name, color: color || 'blue', user_id: uid() }).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  updateCategory: async (id, patch) => {
+    const allowed = {}
+    if ('name' in patch) allowed.name = patch.name
+    if ('color' in patch) allowed.color = patch.color
+    const { data, error } = await sb.from('kv_categories').update(allowed).eq('id', id).eq('user_id', uid()).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  deleteCategory: async (id) => {
+    const { error } = await sb.from('kv_categories').delete().eq('id', id).eq('user_id', uid())
     if (error) throw new Error(error.message)
     return {}
   },
