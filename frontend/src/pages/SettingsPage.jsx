@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { getApiKey, setApiKey, getModel, setModel } from '../lib/claude'
 
 const colorOptions = [
   { id: 'blue', label: 'Blau', cls: 'bg-blue-900/40 text-blue-300 border-blue-700/50' },
@@ -20,8 +21,19 @@ export default function SettingsPage() {
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState('blue')
+  const [claudeKey, setClaudeKey] = useState(() => getApiKey())
+  const [claudeModel, setClaudeModel] = useState(() => getModel())
+  const [keySaved, setKeySaved] = useState(false)
 
   useEffect(() => { load() }, [])
+
+  function saveClaudeSettings(e) {
+    e.preventDefault()
+    setApiKey(claudeKey.trim())
+    setModel(claudeModel.trim() || 'claude-sonnet-4-6')
+    setKeySaved(true)
+    setTimeout(() => setKeySaved(false), 2000)
+  }
 
   async function load() {
     try { setCategories(await api.getCategories()) }
@@ -65,6 +77,44 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-3xl mx-auto">
       <h2 className="text-2xl font-bold text-white mb-4 sm:mb-6">Einstellungen</h2>
+
+      <section className="mb-8">
+        <h3 className="text-lg font-semibold text-white mb-3">Sprach-Assistent</h3>
+        <p className="text-sm text-slate-400 mb-4">
+          Für den Sprach-Chat (Paperclip) brauchst Du einen eigenen Anthropic-API-Key.
+          Er wird ausschliesslich lokal in deinem Browser gespeichert.
+        </p>
+        <form onSubmit={saveClaudeSettings} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+          <div>
+            <label className="block text-sm text-slate-300 mb-2">Anthropic API Key</label>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder="sk-ant-…"
+              value={claudeKey}
+              onChange={e => setClaudeKey(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-2">Modell</label>
+            <input
+              type="text"
+              placeholder="claude-sonnet-4-6"
+              value={claudeModel}
+              onChange={e => setClaudeModel(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono text-sm"
+            />
+            <p className="text-xs text-slate-500 mt-1">Empfohlen: claude-sonnet-4-6 (Standard), alternativ claude-haiku-4-5-20251001 für schneller/günstiger.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+              Speichern
+            </button>
+            {keySaved && <span className="text-sm text-green-400">Gespeichert.</span>}
+          </div>
+        </form>
+      </section>
 
       <section>
         <h3 className="text-lg font-semibold text-white mb-3">Kategorien</h3>
