@@ -9,6 +9,7 @@ const navItems = [
   { to: '/photos', label: 'Fotos', icon: '📷' },
   { to: '/notes', label: 'Notizen', icon: '📝' },
   { to: '/search', label: 'Suche', icon: '🔍' },
+  { to: '/voice', label: 'Sprach-Chat', icon: '🎙️' },
   { to: '/settings', label: 'Einstellungen', icon: '⚙️' },
 ]
 

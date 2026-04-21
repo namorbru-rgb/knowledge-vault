@@ -11,6 +11,7 @@ import PhotosPage from './pages/PhotosPage'
 import NotesPage from './pages/NotesPage'
 import SearchPage from './pages/SearchPage'
 import SettingsPage from './pages/SettingsPage'
+import VoicePage from './pages/VoicePage'
 import Layout from './components/Layout'
 
 function ProtectedRoute({ children, session }) {
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="photos" element={<PhotosPage />} />
         <Route path="notes" element={<NotesPage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="voice" element={<VoicePage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
