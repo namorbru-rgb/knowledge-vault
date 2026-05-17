@@ -5,6 +5,16 @@
 export const changelog = [
   {
     date: '2026-05-17',
+    title: 'Personen (Familienmitglieder)',
+    changes: [
+      'Personen lassen sich in den Einstellungen pflegen (Emoji, Name, Farbe)',
+      'Aktive Person wird oben in der Seitenleiste gewählt; neue Einträge bekommen sie automatisch',
+      'Listen lassen sich per Filter-Chips nach Person eingrenzen (Alle / Person / Ohne)',
+      'Jeder Eintrag zeigt einen kleinen Personen-Badge',
+    ],
+  },
+  {
+    date: '2026-05-17',
     title: 'Frisches Design & Hellmodus',
     changes: [
       'Komplett überarbeiteter Look mit Inter-Schrift, feineren Rundungen und sanften Schatten',

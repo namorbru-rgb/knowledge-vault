@@ -1,30 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { getActivePersonId } from '../lib/person'
+import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
 export default function VideosPage() {
   const [videos, setVideos] = useState([])
+  const [persons, setPersons] = useState([])
+  const [filterPersonId, setFilterPersonId] = useState(null)
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => { loadVideos() }, [])
+  useEffect(() => { load() }, [])
 
-  async function loadVideos() {
+  async function load() {
     try {
-      const data = await api.getVideos()
-      setVideos(data)
+      const [vids, pers] = await Promise.all([api.getVideos(), api.getPersons()])
+      setVideos(vids); setPersons(pers)
     } catch (err) { setError(err.message) }
     finally { setLoading(false) }
   }
+
+  const personsById = useMemo(() => Object.fromEntries(persons.map(p => [p.id, p])), [persons])
+  const filteredVideos = useMemo(() => {
+    if (!filterPersonId) return videos
+    if (filterPersonId === 'none') return videos.filter(v => !v.person_id)
+    return videos.filter(v => v.person_id === filterPersonId)
+  }, [videos, filterPersonId])
 
   async function addVideo(e) {
     e.preventDefault()
     if (!url.trim()) return
     setAdding(true)
     try {
-      const video = await api.addVideo(url.trim())
+      const video = await api.addVideo(url.trim(), null, getActivePersonId())
       setVideos(prev => [video, ...prev])
       setUrl('')
     } catch (err) { setError(err.message) }
@@ -63,10 +74,11 @@ export default function VideosPage() {
       </form>
 
       {error && <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>}
+      <PersonFilter persons={persons} value={filterPersonId} onChange={setFilterPersonId} />
       {loading ? <p className="text-muted">Lädt...</p> : (
         <div className="space-y-3">
-          {videos.length === 0 && <p className="text-muted">Noch keine Videos. YouTube-URL oben einfügen!</p>}
-          {videos.map(video => (
+          {filteredVideos.length === 0 && <p className="text-muted">Keine Videos in dieser Auswahl.</p>}
+          {filteredVideos.map(video => (
             <div key={video.id} className="bg-surface border border-line rounded-xl p-4 flex gap-4">
               {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="w-24 h-16 object-cover rounded-lg flex-shrink-0" />}
               <div className="flex-1 min-w-0">
@@ -74,10 +86,11 @@ export default function VideosPage() {
                   {video.title || video.url}
                 </Link>
                 <p className="text-xs text-subtle mt-1 truncate">{video.url}</p>
-                <div className="flex items-center gap-4 mt-2 flex-wrap">
+                <div className="flex items-center gap-2 sm:gap-4 mt-2 flex-wrap">
                   <span className={`text-xs ${statusColors[video.transcript_status] || 'text-muted'}`} title={video.transcript_error || ''}>
                     {statusLabel(video)}
                   </span>
+                  <PersonBadge person={personsById[video.person_id]} />
                   {video.duration_seconds && <span className="text-xs text-subtle">{Math.floor(video.duration_seconds/60)}m {video.duration_seconds%60}s</span>}
                   <span className="text-xs text-subtle">{new Date(video.created_at).toLocaleDateString('de-DE')}</span>
                 </div>

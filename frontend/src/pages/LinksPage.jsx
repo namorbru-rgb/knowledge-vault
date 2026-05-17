@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { colorClass } from './SettingsPage'
+import { getActivePersonId } from '../lib/person'
+import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
 function getDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./, '') }
@@ -42,6 +44,8 @@ function statusLabel(status) {
 export default function LinksPage() {
   const [links, setLinks] = useState([])
   const [categories, setCategories] = useState([])
+  const [persons, setPersons] = useState([])
+  const [filterPersonId, setFilterPersonId] = useState(null)
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -57,9 +61,8 @@ export default function LinksPage() {
 
   async function load() {
     try {
-      const [ls, cs] = await Promise.all([api.getLinks(), api.getCategories()])
-      setLinks(ls)
-      setCategories(cs)
+      const [ls, cs, ps] = await Promise.all([api.getLinks(), api.getCategories(), api.getPersons()])
+      setLinks(ls); setCategories(cs); setPersons(ps)
     } catch (err) { setError(err.message) }
     finally { setLoading(false) }
   }
@@ -69,12 +72,19 @@ export default function LinksPage() {
     if (!url.trim()) return
     setAdding(true)
     try {
-      const link = await api.addLink(url.trim())
+      const link = await api.addLink(url.trim(), null, getActivePersonId())
       setLinks(prev => [link, ...prev])
       setUrl('')
     } catch (err) { setError(err.message) }
     finally { setAdding(false) }
   }
+
+  const personsById = useMemo(() => Object.fromEntries(persons.map(p => [p.id, p])), [persons])
+  const filteredLinks = useMemo(() => {
+    if (!filterPersonId) return links
+    if (filterPersonId === 'none') return links.filter(l => !l.person_id)
+    return links.filter(l => l.person_id === filterPersonId)
+  }, [links, filterPersonId])
 
   async function deleteLink(id) {
     if (!confirm('Diesen Link löschen?')) return
@@ -139,17 +149,19 @@ export default function LinksPage() {
 
       {error && <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>}
 
+      <PersonFilter persons={persons} value={filterPersonId} onChange={setFilterPersonId} />
+
       {loading ? (
         <p className="text-muted">Lädt…</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {links.length === 0 && (
+          {filteredLinks.length === 0 && (
             <p className="text-muted col-span-full">
-              Noch keine Links. Ersten URL oben speichern!
+              Keine Links in dieser Auswahl.
             </p>
           )}
 
-          {links.map(link => {
+          {filteredLinks.map(link => {
             const title = displayTitle(link)
             const domain = getDomain(link.url)
             const favicon = faviconFor(link.url)
@@ -242,8 +254,9 @@ export default function LinksPage() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-3 mt-auto pt-3">
+                      <div className="flex items-center gap-2 sm:gap-3 mt-auto pt-3 flex-wrap">
                         <span className={`text-xs ${s.cls}`}>{s.icon} {s.text}</span>
+                        <PersonBadge person={personsById[link.person_id]} />
                         <span className="text-xs text-subtle">
                           {new Date(link.created_at).toLocaleDateString('de-DE')}
                         </span>

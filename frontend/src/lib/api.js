@@ -37,8 +37,8 @@ export const api = {
     const { data } = await sb.from('kv_videos').select('*, segments:kv_video_segments(*)').eq('id', id).single()
     return data
   },
-  addVideo: async (url, title) => {
-    const { data, error } = await sb.from('kv_videos').insert({ url, title: title||url, user_id: uid(), transcript_status: 'pending', created_at: new Date().toISOString() }).select().single()
+  addVideo: async (url, title, personId) => {
+    const { data, error } = await sb.from('kv_videos').insert({ url, title: title||url, user_id: uid(), person_id: personId || null, transcript_status: 'pending', created_at: new Date().toISOString() }).select().single()
     if (error) throw new Error(error.message)
     return data
   },
@@ -53,8 +53,8 @@ export const api = {
     if (error) throw new Error(error.message)
     return data || []
   },
-  addLink: async (url, title) => {
-    const { data, error } = await sb.from('kv_links').insert({ url, title: title||url, user_id: uid(), created_at: new Date().toISOString() }).select().single()
+  addLink: async (url, title, personId) => {
+    const { data, error } = await sb.from('kv_links').insert({ url, title: title||url, user_id: uid(), person_id: personId || null, created_at: new Date().toISOString() }).select().single()
     if (error) throw new Error(error.message)
     return data
   },
@@ -63,6 +63,7 @@ export const api = {
     if ('title' in patch) allowed.title = patch.title
     if ('notes' in patch) allowed.notes = patch.notes
     if ('category_id' in patch) allowed.category_id = patch.category_id
+    if ('person_id' in patch) allowed.person_id = patch.person_id
     const { data, error } = await sb.from('kv_links').update(allowed).eq('id', id).eq('user_id', uid()).select().single()
     if (error) throw new Error(error.message)
     return data
@@ -105,7 +106,7 @@ export const api = {
       public_url: p.storage_path ? sb.storage.from('kv-media').getPublicUrl(p.storage_path).data?.publicUrl : null,
     }))
   },
-  uploadPhoto: async (formData) => {
+  uploadPhoto: async (formData, personId) => {
     const file = formData.get('photo')
     if (!file) throw new Error('Keine Datei')
     const safeName = file.name.replace(/[^\w.\-]+/g, '_')
@@ -116,6 +117,7 @@ export const api = {
       storage_path: path,
       filename: file.name,
       user_id: uid(),
+      person_id: personId || null,
       created_at: new Date().toISOString(),
     }).select().single()
     if (error) throw new Error(error.message)
@@ -134,8 +136,8 @@ export const api = {
     if (error) throw new Error(error.message)
     return data || []
   },
-  addNote: async (content, refs) => {
-    const { data, error } = await sb.from('kv_notes').insert({ content, ...refs, user_id: uid(), created_at: new Date().toISOString() }).select().single()
+  addNote: async (content, refs, personId) => {
+    const { data, error } = await sb.from('kv_notes').insert({ content, ...refs, user_id: uid(), person_id: personId || null, created_at: new Date().toISOString() }).select().single()
     if (error) throw new Error(error.message)
     return data
   },
@@ -146,6 +148,38 @@ export const api = {
   },
   deleteNote: async (id) => {
     const { error } = await sb.from('kv_notes').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+
+  getPersons: async () => {
+    const { data, error } = await sb.from('kv_persons').select('*').eq('user_id', uid()).order('name')
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+  addPerson: async (name, color, emoji) => {
+    const { data, error } = await sb.from('kv_persons').insert({
+      name, color: color || 'blue', emoji: emoji || '👤', user_id: uid(),
+    }).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  updatePerson: async (id, patch) => {
+    const allowed = {}
+    if ('name'  in patch) allowed.name  = patch.name
+    if ('color' in patch) allowed.color = patch.color
+    if ('emoji' in patch) allowed.emoji = patch.emoji
+    const { data, error } = await sb.from('kv_persons').update(allowed).eq('id', id).eq('user_id', uid()).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
+  deletePerson: async (id) => {
+    const { error } = await sb.from('kv_persons').delete().eq('id', id).eq('user_id', uid())
+    if (error) throw new Error(error.message)
+    return {}
+  },
+  setItemPerson: async (table, id, personId) => {
+    const { error } = await sb.from(table).update({ person_id: personId || null }).eq('id', id).eq('user_id', uid())
     if (error) throw new Error(error.message)
     return {}
   },
