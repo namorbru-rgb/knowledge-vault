@@ -5,6 +5,10 @@ import { colorClass } from './SettingsPage'
 import { getActivePersonId } from '../lib/person'
 import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
+function fallbackPreview(url) {
+  return url ? `https://api.microlink.io/?url=${encodeURIComponent(url)}&embed=image.url` : ''
+}
+
 function getDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
 }
@@ -30,6 +34,7 @@ export default function VideosPage() {
   const [persons, setPersons] = useState([])
   const [categories, setCategories] = useState([])
   const [filterPersonId, setFilterPersonId] = useState(null)
+  const [brokenPreviews, setBrokenPreviews] = useState(() => new Set())
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -104,9 +109,18 @@ export default function VideosPage() {
       {loading ? <p className="text-muted">Lädt...</p> : (
         <div className="space-y-3">
           {filteredVideos.length === 0 && <p className="text-muted">Keine Videos in dieser Auswahl.</p>}
-          {filteredVideos.map(video => (
+          {filteredVideos.map(video => {
+            const previewUrl = video.thumbnail_url
+              || (!brokenPreviews.has(video.id) ? fallbackPreview(video.url) : '')
+            return (
             <div key={video.id} className="bg-surface border border-line rounded-xl p-4 flex gap-4">
-              {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="w-24 h-16 object-cover rounded-lg flex-shrink-0" />}
+              <div className="w-24 h-16 rounded-lg overflow-hidden bg-elevated flex-shrink-0 flex items-center justify-center text-2xl">
+                {previewUrl ? (
+                  <img src={previewUrl} alt="" loading="lazy"
+                    onError={() => setBrokenPreviews(prev => { const n = new Set(prev); n.add(video.id); return n })}
+                    className="w-full h-full object-cover" />
+                ) : '🎬'}
+              </div>
               <div className="flex-1 min-w-0">
                 <Link to={`/videos/${video.id}`} className="font-medium text-fg hover:text-blue-600 dark:text-blue-400 transition-colors block truncate">
                   {displayTitle(video)}
@@ -130,7 +144,8 @@ export default function VideosPage() {
               </div>
               <button onClick={() => deleteVideo(video.id)} className="text-subtle hover:text-red-600 dark:text-red-400 transition-colors p-1">🗑️</button>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
