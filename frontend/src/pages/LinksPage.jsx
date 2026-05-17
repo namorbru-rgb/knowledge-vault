@@ -34,9 +34,9 @@ function displayTitle(link) {
 }
 
 function statusLabel(status) {
-  if (status === 'done') return { icon: '✅', text: 'Fertig', cls: 'text-green-400' }
-  if (status === 'error') return { icon: '❌', text: 'Fehler', cls: 'text-red-400' }
-  return { icon: '⏳', text: 'Verarbeitung', cls: 'text-yellow-400' }
+  if (status === 'done') return { icon: '✅', text: 'Fertig', cls: 'text-green-600 dark:text-green-400' }
+  if (status === 'error') return { icon: '❌', text: 'Fehler', cls: 'text-red-600 dark:text-red-400' }
+  return { icon: '⏳', text: 'Verarbeitung', cls: 'text-yellow-600 dark:text-yellow-400' }
 }
 
 export default function LinksPage() {
@@ -115,7 +115,7 @@ export default function LinksPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold text-white mb-4 sm:mb-6">Links</h2>
+      <h2 className="text-2xl font-bold text-fg mb-4 sm:mb-6">Links</h2>
 
       <form onSubmit={addLink} className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-6 sm:mb-8">
         <input
@@ -126,7 +126,7 @@ export default function LinksPage() {
           placeholder="https://..."
           value={url}
           onChange={e => setUrl(e.target.value)}
-          className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+          className="flex-1 bg-surface border border-line rounded-lg px-4 py-3 text-fg placeholder:text-muted focus:outline-none focus:border-blue-500"
         />
         <button
           type="submit"
@@ -137,14 +137,14 @@ export default function LinksPage() {
         </button>
       </form>
 
-      {error && <p className="text-red-400 mb-4">{error}</p>}
+      {error && <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>}
 
       {loading ? (
-        <p className="text-slate-400">Lädt…</p>
+        <p className="text-muted">Lädt…</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {links.length === 0 && (
-            <p className="text-slate-400 col-span-full">
+            <p className="text-muted col-span-full">
               Noch keine Links. Ersten URL oben speichern!
             </p>
           )}
@@ -161,13 +161,13 @@ export default function LinksPage() {
             return (
               <article
                 key={link.id}
-                className="group bg-slate-800 border border-slate-700 rounded-xl overflow-hidden flex flex-col hover:border-slate-600 transition-colors"
+                className="group bg-surface border border-line rounded-xl overflow-hidden flex flex-col hover:border-line transition-colors"
               >
                 <a
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block relative aspect-[16/9] bg-slate-900 overflow-hidden"
+                  className="block relative aspect-[16/9] bg-app overflow-hidden"
                 >
                   {preview && (
                     <img
@@ -185,7 +185,7 @@ export default function LinksPage() {
                   )}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-center gap-2">
                     {favicon && <img src={favicon} alt="" className="w-4 h-4 rounded-sm flex-shrink-0" />}
-                    <span className="text-xs text-slate-200 truncate">{domain}</span>
+                    <span className="text-xs text-fg truncate">{domain}</span>
                     {category && (
                       <span className={`ml-auto px-2 py-0.5 rounded-full text-xs border ${colorClass(category.color)}`}>
                         {category.name}
@@ -202,7 +202,7 @@ export default function LinksPage() {
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-medium text-white hover:text-blue-400 transition-colors line-clamp-2 flex-1 break-words"
+                          className="font-medium text-fg hover:text-blue-600 dark:text-blue-400 transition-colors line-clamp-2 flex-1 break-words"
                         >
                           {title}
                         </a>
@@ -210,14 +210,14 @@ export default function LinksPage() {
                           <button
                             onClick={() => startEdit(link)}
                             aria-label="Bearbeiten"
-                            className="text-slate-500 hover:text-blue-400 transition-colors p-1"
+                            className="text-subtle hover:text-blue-600 dark:text-blue-400 transition-colors p-1"
                           >
                             ✏️
                           </button>
                           <button
                             onClick={() => deleteLink(link.id)}
                             aria-label="Löschen"
-                            className="text-slate-600 hover:text-red-400 transition-colors p-1"
+                            className="text-subtle hover:text-red-600 dark:text-red-400 transition-colors p-1"
                           >
                             🗑️
                           </button>
@@ -225,17 +225,17 @@ export default function LinksPage() {
                       </div>
 
                       {link.notes && (
-                        <p className="text-sm text-slate-200 mt-2 whitespace-pre-wrap break-words">{link.notes}</p>
+                        <p className="text-sm text-fg mt-2 whitespace-pre-wrap break-words">{link.notes}</p>
                       )}
 
                       {link.summary && !link.notes && (
-                        <p className="text-sm text-slate-400 mt-2 line-clamp-3">{link.summary}</p>
+                        <p className="text-sm text-muted mt-2 line-clamp-3">{link.summary}</p>
                       )}
 
                       {link.tags && link.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-3">
                           {link.tags.map(tag => (
-                            <span key={tag} className="px-2 py-0.5 bg-blue-900/40 text-blue-300 text-xs rounded-full">
+                            <span key={tag} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs rounded-full">
                               {tag}
                             </span>
                           ))}
@@ -244,41 +244,41 @@ export default function LinksPage() {
 
                       <div className="flex items-center gap-3 mt-auto pt-3">
                         <span className={`text-xs ${s.cls}`}>{s.icon} {s.text}</span>
-                        <span className="text-xs text-slate-600">
+                        <span className="text-xs text-subtle">
                           {new Date(link.created_at).toLocaleDateString('de-DE')}
                         </span>
                       </div>
                     </>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs text-slate-400">Titel</label>
+                      <label className="text-xs text-muted">Titel</label>
                       <input
                         type="text"
                         value={editTitle}
                         onChange={e => setEditTitle(e.target.value)}
                         placeholder={displayTitle(link)}
-                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="bg-app border border-line rounded-lg px-3 py-2 text-fg placeholder:text-muted focus:outline-none focus:border-blue-500"
                       />
 
-                      <label className="text-xs text-slate-400 mt-1">Bemerkung</label>
+                      <label className="text-xs text-muted mt-1">Bemerkung</label>
                       <textarea
                         value={editNotes}
                         onChange={e => setEditNotes(e.target.value)}
                         rows={4}
                         placeholder="Eigene Notiz zum Link…"
-                        className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-y"
+                        className="bg-app border border-line rounded-lg px-3 py-2 text-fg placeholder:text-muted focus:outline-none focus:border-blue-500 resize-y"
                       />
 
-                      <label className="text-xs text-slate-400 mt-1">Kategorie</label>
+                      <label className="text-xs text-muted mt-1">Kategorie</label>
                       {categories.length === 0 ? (
-                        <p className="text-xs text-slate-500">
-                          Noch keine Kategorien. <Link to="/settings" className="text-blue-400 hover:text-blue-300">In den Einstellungen anlegen</Link>.
+                        <p className="text-xs text-subtle">
+                          Noch keine Kategorien. <Link to="/settings" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:text-blue-300">In den Einstellungen anlegen</Link>.
                         </p>
                       ) : (
                         <select
                           value={editCategory}
                           onChange={e => setEditCategory(e.target.value)}
-                          className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                          className="bg-app border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-blue-500"
                         >
                           <option value="">– keine –</option>
                           {categories.map(c => (
@@ -297,7 +297,7 @@ export default function LinksPage() {
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+                          className="px-4 py-2 bg-elevated hover:bg-hover text-fg rounded-lg text-sm"
                         >
                           Abbrechen
                         </button>
