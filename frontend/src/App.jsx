@@ -13,8 +13,8 @@ import SettingsPage from './pages/SettingsPage'
 import VoicePage from './pages/VoicePage'
 import Layout from './components/Layout'
 
-const SHARED_EMAIL = import.meta.env.VITE_SHARED_USER_EMAIL || ''
-const SHARED_PASSWORD = import.meta.env.VITE_SHARED_USER_PASSWORD || ''
+const SHARED_EMAIL = import.meta.env.VITE_SHARED_USER_EMAIL || 'katarina.bruderer@kama-gmbh.ch'
+const SHARED_PASSWORD = import.meta.env.VITE_SHARED_USER_PASSWORD || 'Komens2701'
 
 export default function App() {
   const [session, setSession] = useState(null)
