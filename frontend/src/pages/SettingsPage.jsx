@@ -77,10 +77,12 @@ export default function SettingsPage() {
 
   async function load() {
     try {
-      const [cats, pers] = await Promise.all([api.getCategories(), api.getPersons()])
+      const [cats, pers] = await Promise.all([
+        api.getCategories().catch(err => { setError('Kategorien-Tabelle fehlt in der DB: ' + err.message); return [] }),
+        api.getPersons().catch(err => { setError('Personen-Tabelle fehlt in der DB: ' + err.message); return [] }),
+      ])
       setCategories(cats); setPersons(pers)
-    } catch (err) { setError(err.message) }
-    finally { setLoading(false) }
+    } finally { setLoading(false) }
   }
 
   async function addCategory(e) {

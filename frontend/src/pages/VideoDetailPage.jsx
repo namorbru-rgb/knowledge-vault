@@ -31,7 +31,11 @@ export default function VideoDetailPage() {
   const [previewBroken, setPreviewBroken] = useState(false)
 
   useEffect(() => {
-    Promise.all([api.getVideo(id), api.getCategories(), api.getPersons()])
+    Promise.all([
+      api.getVideo(id),
+      api.getCategories().catch(() => []),
+      api.getPersons().catch(() => []),
+    ])
       .then(([v, cs, ps]) => {
         setVideo(v); setCategories(cs); setPersons(ps)
         setEditTitle(v?.title || '')

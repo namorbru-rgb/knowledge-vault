@@ -16,10 +16,12 @@ export default function PhotosPage() {
 
   async function load() {
     try {
-      const [ph, ps] = await Promise.all([api.getPhotos(), api.getPersons()])
+      const [ph, ps] = await Promise.all([
+        api.getPhotos().catch(err => { setError(err.message); return [] }),
+        api.getPersons().catch(() => []),
+      ])
       setPhotos(ph); setPersons(ps)
-    } catch (err) { setError(err.message) }
-    finally { setLoading(false) }
+    } finally { setLoading(false) }
   }
 
   async function handleUpload(e) {

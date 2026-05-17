@@ -18,10 +18,12 @@ export default function NotesPage() {
 
   async function load() {
     try {
-      const [ns, ps] = await Promise.all([api.getNotes(), api.getPersons()])
+      const [ns, ps] = await Promise.all([
+        api.getNotes().catch(err => { setError(err.message); return [] }),
+        api.getPersons().catch(() => []),
+      ])
       setNotes(ns); setPersons(ps)
-    } catch (err) { setError(err.message) }
-    finally { setLoading(false) }
+    } finally { setLoading(false) }
   }
 
   async function addNote(e) {
