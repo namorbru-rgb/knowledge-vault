@@ -5,6 +5,26 @@ import { colorClass } from './SettingsPage'
 import { getActivePersonId } from '../lib/person'
 import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
+function getDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
+}
+
+// Liefert einen lesbaren Titel: bevorzugt den vom Worker gesetzten,
+// fällt sonst auf "domain — letztes-pfad-segment" zurück (so wie LinksPage).
+function displayTitle(video) {
+  const t = (video.title || '').trim()
+  if (t && t !== video.url) return t
+  const d = getDomain(video.url)
+  if (!d) return video.url
+  try {
+    const p = new URL(video.url).pathname.replace(/\/+$/, '')
+    if (!p || p === '/') return d
+    const last = p.split('/').filter(Boolean).pop() || ''
+    const slug = decodeURIComponent(last).replace(/[-_]/g, ' ').slice(0, 60)
+    return slug ? `${d} — ${slug}` : d
+  } catch { return d }
+}
+
 export default function VideosPage() {
   const [videos, setVideos] = useState([])
   const [persons, setPersons] = useState([])
@@ -89,9 +109,11 @@ export default function VideosPage() {
               {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="w-24 h-16 object-cover rounded-lg flex-shrink-0" />}
               <div className="flex-1 min-w-0">
                 <Link to={`/videos/${video.id}`} className="font-medium text-fg hover:text-blue-600 dark:text-blue-400 transition-colors block truncate">
-                  {video.title || video.url}
+                  {displayTitle(video)}
                 </Link>
-                <p className="text-xs text-subtle mt-1 truncate">{video.url}</p>
+                {video.title && video.title !== video.url && (
+                  <p className="text-xs text-subtle mt-1 truncate">{video.url}</p>
+                )}
                 <div className="flex items-center gap-2 sm:gap-4 mt-2 flex-wrap">
                   <span className={`text-xs ${statusColors[video.transcript_status] || 'text-muted'}`} title={video.transcript_error || ''}>
                     {statusLabel(video)}
