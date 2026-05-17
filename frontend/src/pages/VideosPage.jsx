@@ -13,11 +13,27 @@ function getDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
 }
 
-// Liefert einen lesbaren Titel: bevorzugt den vom Worker gesetzten,
-// fällt sonst auf "domain — letztes-pfad-segment" zurück (so wie LinksPage).
+// "241K views · 4.8K reactions" und Co. — yt-dlp setzt sowas bei
+// Facebook-Videos als Title. Erkennen wir, damit displayTitle() auf
+// die Beschreibung (= eigentlicher Caption-Text) ausweichen kann.
+function looksLikeStats(t) {
+  if (!t) return false
+  return /^\d+([\.,]\d+)?\s*[KMB]?\s*(views?|aufrufe)\b/i.test(t) ||
+         /\breactions?\b|\breaktionen\b/i.test(t)
+}
+
+// Liefert einen lesbaren Titel: bevorzugt einen echten vom Worker,
+// sonst die erste Zeile der Beschreibung, sonst "domain — pfad-slug".
 function displayTitle(video) {
   const t = (video.title || '').trim()
-  if (t && t !== video.url) return t
+  const desc = (video.description || '').trim()
+  if (t && t !== video.url && !looksLikeStats(t)) return t
+
+  if (desc) {
+    const firstLine = desc.split(/\r?\n/).map(l => l.trim()).find(Boolean)
+    if (firstLine) return firstLine.slice(0, 120)
+  }
+
   const d = getDomain(video.url)
   if (!d) return video.url
   try {
