@@ -37,15 +37,16 @@ export default function VideosPage() {
     setVideos(prev => prev.filter(v => v.id !== id))
   }
 
-  async function retryVideo(id) {
-    try {
-      const updated = await api.retryVideo(id)
-      setVideos(prev => prev.map(v => v.id === id ? { ...v, ...updated } : v))
-    } catch (err) { setError(err.message) }
-  }
-
   const statusColors = { done: 'text-green-400', error: 'text-red-400', processing: 'text-yellow-400', pending: 'text-slate-400' }
   const statusLabels = { done: '✅ Transkribiert', error: '❌ Fehler', processing: '⏳ Wird verarbeitet', pending: '🕐 Ausstehend' }
+
+  function statusLabel(v) {
+    const base = statusLabels[v.transcript_status] || v.transcript_status
+    if (v.transcript_status === 'pending' && v.transcript_retry_count > 0) {
+      return `🔁 Erneuter Versuch ${v.transcript_retry_count + 1}/3`
+    }
+    return base
+  }
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
@@ -74,15 +75,9 @@ export default function VideosPage() {
                 </Link>
                 <p className="text-xs text-slate-500 mt-1 truncate">{video.url}</p>
                 <div className="flex items-center gap-4 mt-2 flex-wrap">
-                  <span className={`text-xs ${statusColors[video.transcript_status] || 'text-slate-400'}`}>
-                    {statusLabels[video.transcript_status] || video.transcript_status}
+                  <span className={`text-xs ${statusColors[video.transcript_status] || 'text-slate-400'}`} title={video.transcript_error || ''}>
+                    {statusLabel(video)}
                   </span>
-                  {video.transcript_status === 'error' && (
-                    <button onClick={() => retryVideo(video.id)}
-                      className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">
-                      🔄 Erneut versuchen
-                    </button>
-                  )}
                   {video.duration_seconds && <span className="text-xs text-slate-500">{Math.floor(video.duration_seconds/60)}m {video.duration_seconds%60}s</span>}
                   <span className="text-xs text-slate-600">{new Date(video.created_at).toLocaleDateString('de-DE')}</span>
                 </div>

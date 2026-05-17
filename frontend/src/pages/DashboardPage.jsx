@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import ChangelogModal from '../components/ChangelogModal'
 
 const cards = [
   { key: 'videos', label: 'Videos', icon: '🎬', to: '/videos', color: 'from-purple-600 to-purple-800' },
@@ -19,15 +20,25 @@ const addLabels = {
 export default function DashboardPage() {
   const [stats, setStats] = useState({ videos: 0, links: 0, photos: 0, notes: 0 })
   const [loading, setLoading] = useState(true)
+  const [showChangelog, setShowChangelog] = useState(false)
 
   useEffect(() => {
     api.getStats().then(setStats).catch(console.error).finally(() => setLoading(false))
   }, [])
 
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold text-white mb-2">Übersicht</h2>
+    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <h2 className="text-2xl font-bold text-white">Übersicht</h2>
+        <button onClick={() => setShowChangelog(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-300 hover:text-white transition-colors flex-shrink-0"
+          title="Was hat sich geändert?">
+          <span>🕘</span><span className="hidden sm:inline">Versionsverlauf</span>
+        </button>
+      </div>
       <p className="text-slate-400 mb-8">Dein Wissen auf einen Blick</p>
+
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {cards.map(card => (

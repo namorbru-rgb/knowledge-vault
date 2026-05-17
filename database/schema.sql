@@ -20,8 +20,12 @@ CREATE TABLE IF NOT EXISTS kv_videos (
   storage_path text,
   audio_path text,
   transcript_status text DEFAULT 'pending',
+  transcript_retry_count int NOT NULL DEFAULT 0,
+  transcript_error text,
   created_at timestamptz DEFAULT now()
 );
+ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS transcript_retry_count int NOT NULL DEFAULT 0;
+ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS transcript_error text;
 
 CREATE TABLE IF NOT EXISTS kv_video_segments (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,

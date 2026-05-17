@@ -26,18 +26,18 @@ export default function VideoDetailPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
       <Link to="/videos" className="text-blue-400 hover:text-blue-300 text-sm mb-4 block">← Zurück zu Videos</Link>
 
-      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 mb-6">
-        <div className="flex gap-4">
-          {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="w-32 h-20 object-cover rounded-lg flex-shrink-0" />}
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-white">{video.title}</h2>
+      <div className="bg-slate-800 rounded-xl p-4 sm:p-6 border border-slate-700 mb-6">
+        <div className="flex gap-3 sm:gap-4">
+          {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="w-20 h-14 sm:w-32 sm:h-20 object-cover rounded-lg flex-shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base sm:text-xl font-bold text-white break-words">{video.title}</h2>
             <a href={video.url} target="_blank" rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 text-sm mt-1 block truncate">{video.url}</a>
-            {video.description && <p className="text-slate-400 text-sm mt-2 line-clamp-3">{video.description}</p>}
-            <div className="flex gap-4 mt-3">
+              className="text-blue-400 hover:text-blue-300 text-xs sm:text-sm mt-1 block truncate">{video.url}</a>
+            {video.description && <p className="text-slate-400 text-xs sm:text-sm mt-2 line-clamp-3 break-words">{video.description}</p>}
+            <div className="flex gap-4 mt-3 flex-wrap">
               {video.duration_seconds && <span className="text-xs text-slate-500">{Math.floor(video.duration_seconds/60)}m {video.duration_seconds%60}s</span>}
               <span className="text-xs text-slate-500 capitalize">{video.transcript_status}</span>
             </div>
@@ -47,10 +47,10 @@ export default function VideoDetailPage() {
 
       {video.segments && video.segments.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-4">
             <h3 className="font-semibold text-white">Transkript ({video.segments.length} Abschnitte)</h3>
             <input type="text" placeholder="Transkript durchsuchen..." value={search} onChange={e => setSearch(e.target.value)}
-              className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
+              className="w-full sm:w-auto bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500" />
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {filteredSegments.map(seg => (

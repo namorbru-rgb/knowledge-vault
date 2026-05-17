@@ -13,6 +13,7 @@ const YTDLP_PATH = process.env.YTDLP_PATH || 'yt-dlp';
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
 const FB_COOKIES_FILE = process.env.FB_COOKIES_FILE || '';
 const WORK_DIR = '/tmp/kv-video-work';
+const MAX_RETRIES = 3;
 
 if (!fs.existsSync(WORK_DIR)) fs.mkdirSync(WORK_DIR, { recursive: true });
 
@@ -95,7 +96,8 @@ async function processVideo(video) {
       description: description.slice(0, 2000),
       duration_seconds: Math.round(duration),
       thumbnail_url: thumbnail,
-      transcript_status: 'done'
+      transcript_status: 'done',
+      transcript_error: null
     }).eq('id', video.id);
 
     // 6. Store segments with embeddings
@@ -114,18 +116,27 @@ async function processVideo(video) {
 
     console.log('Video processed:', video.id, 'segments:', segments.length);
   } catch (err) {
-    console.error('Video processing error:', video.id, err.message);
-    await supabase.from('kv_videos').update({ transcript_status: 'error' }).eq('id', video.id);
+    const newCount = (video.transcript_retry_count || 0) + 1;
+    const giveUp = newCount >= MAX_RETRIES;
+    console.error('Video processing error:', video.id, `(Versuch ${newCount}/${MAX_RETRIES})`, err.message);
+    await supabase.from('kv_videos').update({
+      transcript_status: giveUp ? 'error' : 'pending',
+      transcript_retry_count: newCount,
+      transcript_error: (err.message || 'Unbekannter Fehler').slice(0, 500),
+    }).eq('id', video.id);
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
 }
 
 async function runWorker() {
+  // Holt offene Videos: alles 'pending' und alles 'error', das noch
+  // Versuche übrig hat. So werden bestehende Fehler-Einträge nach dem
+  // Hinzufügen des retry_count-Feldes automatisch nachgeholt.
   const { data: pendingVideos } = await supabase
     .from('kv_videos')
     .select('*')
-    .eq('transcript_status', 'pending')
+    .or(`transcript_status.eq.pending,and(transcript_status.eq.error,transcript_retry_count.lt.${MAX_RETRIES})`)
     .limit(3);
 
   if (pendingVideos && pendingVideos.length > 0) {
