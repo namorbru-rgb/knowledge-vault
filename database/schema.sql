@@ -51,6 +51,11 @@ CREATE INDEX IF NOT EXISTS kv_links_person_id_idx  ON kv_links(person_id);
 CREATE INDEX IF NOT EXISTS kv_photos_person_id_idx ON kv_photos(person_id);
 CREATE INDEX IF NOT EXISTS kv_notes_person_id_idx  ON kv_notes(person_id);
 
+-- Notizen + Kategorien auch für Videos
+ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS notes text;
+ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES kv_categories(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS kv_videos_category_id_idx ON kv_videos(category_id);
+
 CREATE TABLE IF NOT EXISTS kv_video_segments (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   video_id uuid REFERENCES kv_videos(id) ON DELETE CASCADE,

@@ -42,6 +42,16 @@ export const api = {
     if (error) throw new Error(error.message)
     return data
   },
+  updateVideo: async (id, patch) => {
+    const allowed = {}
+    if ('title'       in patch) allowed.title = patch.title
+    if ('notes'       in patch) allowed.notes = patch.notes
+    if ('category_id' in patch) allowed.category_id = patch.category_id
+    if ('person_id'   in patch) allowed.person_id = patch.person_id
+    const { data, error } = await sb.from('kv_videos').update(allowed).eq('id', id).eq('user_id', uid()).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  },
   deleteVideo: async (id) => {
     const { error } = await sb.from('kv_videos').delete().eq('id', id).eq('user_id', uid())
     if (error) throw new Error(error.message)

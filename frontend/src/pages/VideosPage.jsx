@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { colorClass } from './SettingsPage'
 import { getActivePersonId } from '../lib/person'
 import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
 export default function VideosPage() {
   const [videos, setVideos] = useState([])
   const [persons, setPersons] = useState([])
+  const [categories, setCategories] = useState([])
   const [filterPersonId, setFilterPersonId] = useState(null)
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(true)
@@ -17,13 +19,14 @@ export default function VideosPage() {
 
   async function load() {
     try {
-      const [vids, pers] = await Promise.all([api.getVideos(), api.getPersons()])
-      setVideos(vids); setPersons(pers)
+      const [vids, pers, cats] = await Promise.all([api.getVideos(), api.getPersons(), api.getCategories()])
+      setVideos(vids); setPersons(pers); setCategories(cats)
     } catch (err) { setError(err.message) }
     finally { setLoading(false) }
   }
 
   const personsById = useMemo(() => Object.fromEntries(persons.map(p => [p.id, p])), [persons])
+  const categoriesById = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories])
   const filteredVideos = useMemo(() => {
     if (!filterPersonId) return videos
     if (filterPersonId === 'none') return videos.filter(v => !v.person_id)
@@ -91,6 +94,11 @@ export default function VideosPage() {
                     {statusLabel(video)}
                   </span>
                   <PersonBadge person={personsById[video.person_id]} />
+                  {categoriesById[video.category_id] && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] border ${colorClass(categoriesById[video.category_id].color)}`}>
+                      {categoriesById[video.category_id].name}
+                    </span>
+                  )}
                   {video.duration_seconds && <span className="text-xs text-subtle">{Math.floor(video.duration_seconds/60)}m {video.duration_seconds%60}s</span>}
                   <span className="text-xs text-subtle">{new Date(video.created_at).toLocaleDateString('de-DE')}</span>
                 </div>

@@ -5,6 +5,16 @@
 export const changelog = [
   {
     date: '2026-05-17',
+    title: 'Video-Detail mit Notiz, Kategorie & Vorschau',
+    changes: [
+      'Detailseite zeigt grosse Vorschau (eigenes Thumbnail oder Fallback-Bild über microlink)',
+      'Titel, Notiz, Kategorie und Person direkt bearbeitbar',
+      'Transkriptions-Fehler wird zusammen mit dem Eintrag angezeigt',
+      'Kategorie-Badge erscheint auch in der Videoliste',
+    ],
+  },
+  {
+    date: '2026-05-17',
     title: 'Personen (Familienmitglieder)',
     changes: [
       'Personen lassen sich in den Einstellungen pflegen (Emoji, Name, Farbe)',
