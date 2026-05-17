@@ -47,13 +47,6 @@ export const api = {
     if (error) throw new Error(error.message)
     return {}
   },
-  retryVideo: async (id) => {
-    const { data, error } = await sb.from('kv_videos')
-      .update({ transcript_status: 'pending' })
-      .eq('id', id).eq('user_id', uid()).select().single()
-    if (error) throw new Error(error.message)
-    return data
-  },
 
   getLinks: async () => {
     const { data, error } = await sb.from('kv_links').select('*').eq('user_id', uid()).order('created_at', { ascending: false })

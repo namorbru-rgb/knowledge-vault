@@ -2,7 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   background-color: rgb(15 23 42);
   color: rgb(226 232 240);
+  overflow-x: hidden;
 }
