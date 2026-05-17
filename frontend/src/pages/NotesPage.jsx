@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
+import { getActivePersonId } from '../lib/person'
+import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
 export default function NotesPage() {
   const [notes, setNotes] = useState([])
+  const [persons, setPersons] = useState([])
+  const [filterPersonId, setFilterPersonId] = useState(null)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -10,11 +14,13 @@ export default function NotesPage() {
   const [editContent, setEditContent] = useState('')
   const [error, setError] = useState('')
 
-  useEffect(() => { loadNotes() }, [])
+  useEffect(() => { load() }, [])
 
-  async function loadNotes() {
-    try { setNotes(await api.getNotes()) }
-    catch (err) { setError(err.message) }
+  async function load() {
+    try {
+      const [ns, ps] = await Promise.all([api.getNotes(), api.getPersons()])
+      setNotes(ns); setPersons(ps)
+    } catch (err) { setError(err.message) }
     finally { setLoading(false) }
   }
 
@@ -23,12 +29,19 @@ export default function NotesPage() {
     if (!content.trim()) return
     setAdding(true)
     try {
-      const note = await api.addNote(content.trim())
+      const note = await api.addNote(content.trim(), null, getActivePersonId())
       setNotes(prev => [note, ...prev])
       setContent('')
     } catch (err) { setError(err.message) }
     finally { setAdding(false) }
   }
+
+  const personsById = useMemo(() => Object.fromEntries(persons.map(p => [p.id, p])), [persons])
+  const filteredNotes = useMemo(() => {
+    if (!filterPersonId) return notes
+    if (filterPersonId === 'none') return notes.filter(n => !n.person_id)
+    return notes.filter(n => n.person_id === filterPersonId)
+  }, [notes, filterPersonId])
 
   async function saveEdit(id) {
     const note = await api.updateNote(id, editContent)
@@ -43,9 +56,9 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold text-fg mb-6">Notizen</h2>
-      <form onSubmit={addNote} className="mb-8">
+    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
+      <h2 className="text-2xl font-bold text-fg mb-4 sm:mb-6">Notizen</h2>
+      <form onSubmit={addNote} className="mb-6">
         <textarea placeholder="Notiz schreiben..." value={content} onChange={e => setContent(e.target.value)} rows={4}
           className="w-full bg-surface border border-line rounded-lg px-4 py-3 text-fg placeholder:text-muted focus:outline-none focus:border-blue-500 resize-none" />
         <button type="submit" disabled={adding || !content.trim()}
@@ -54,10 +67,11 @@ export default function NotesPage() {
         </button>
       </form>
       {error && <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>}
+      <PersonFilter persons={persons} value={filterPersonId} onChange={setFilterPersonId} />
       {loading ? <p className="text-muted">Lädt...</p> : (
         <div className="space-y-4">
-          {notes.length === 0 && <p className="text-muted">Noch keine Notizen. Erste Notiz oben schreiben!</p>}
-          {notes.map(note => (
+          {filteredNotes.length === 0 && <p className="text-muted">Keine Notizen in dieser Auswahl.</p>}
+          {filteredNotes.map(note => (
             <div key={note.id} className="bg-surface border border-line rounded-xl p-4">
               {editing === note.id ? (
                 <div>
@@ -71,8 +85,11 @@ export default function NotesPage() {
               ) : (
                 <div>
                   <p className="text-fg whitespace-pre-wrap">{note.content}</p>
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-xs text-subtle">{new Date(note.created_at).toLocaleString('de-DE')}</span>
+                  <div className="flex items-center justify-between gap-2 mt-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-subtle">{new Date(note.created_at).toLocaleString('de-DE')}</span>
+                      <PersonBadge person={personsById[note.person_id]} />
+                    </div>
                     <div className="flex gap-2">
                       <button onClick={() => { setEditing(note.id); setEditContent(note.content) }}
                         className="text-subtle hover:text-blue-600 dark:text-blue-400 transition-colors text-sm">✏️</button>

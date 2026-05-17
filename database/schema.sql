@@ -27,6 +27,30 @@ CREATE TABLE IF NOT EXISTS kv_videos (
 ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS transcript_retry_count int NOT NULL DEFAULT 0;
 ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS transcript_error text;
 
+-- Personen (Familienmitglieder) + Zuordnungsspalten
+CREATE TABLE IF NOT EXISTS kv_persons (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  color text DEFAULT 'blue',
+  emoji text DEFAULT '👤',
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE kv_persons ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "user_own_persons" ON kv_persons;
+CREATE POLICY "user_own_persons" ON kv_persons FOR ALL
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE kv_videos ADD COLUMN IF NOT EXISTS person_id uuid REFERENCES kv_persons(id) ON DELETE SET NULL;
+ALTER TABLE kv_links  ADD COLUMN IF NOT EXISTS person_id uuid REFERENCES kv_persons(id) ON DELETE SET NULL;
+ALTER TABLE kv_photos ADD COLUMN IF NOT EXISTS person_id uuid REFERENCES kv_persons(id) ON DELETE SET NULL;
+ALTER TABLE kv_notes  ADD COLUMN IF NOT EXISTS person_id uuid REFERENCES kv_persons(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS kv_persons_user_id_idx ON kv_persons(user_id);
+CREATE INDEX IF NOT EXISTS kv_videos_person_id_idx ON kv_videos(person_id);
+CREATE INDEX IF NOT EXISTS kv_links_person_id_idx  ON kv_links(person_id);
+CREATE INDEX IF NOT EXISTS kv_photos_person_id_idx ON kv_photos(person_id);
+CREATE INDEX IF NOT EXISTS kv_notes_person_id_idx  ON kv_notes(person_id);
+
 CREATE TABLE IF NOT EXISTS kv_video_segments (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   video_id uuid REFERENCES kv_videos(id) ON DELETE CASCADE,

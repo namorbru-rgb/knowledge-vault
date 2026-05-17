@@ -12,8 +12,11 @@ const colorOptions = [
 ]
 export const colorClass = (id) => (colorOptions.find(c => c.id === id) || colorOptions[0]).cls
 
+const emojiOptions = ['👤','👩','👨','👧','👦','🧑','👵','👴','🐶','🐱']
+
 export default function SettingsPage() {
   const [categories, setCategories] = useState([])
+  const [persons, setPersons] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [newName, setNewName] = useState('')
@@ -21,11 +24,48 @@ export default function SettingsPage() {
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState('blue')
+  const [newPersonName, setNewPersonName] = useState('')
+  const [newPersonEmoji, setNewPersonEmoji] = useState('👤')
+  const [newPersonColor, setNewPersonColor] = useState('blue')
+  const [editingPersonId, setEditingPersonId] = useState(null)
+  const [editPersonName, setEditPersonName] = useState('')
+  const [editPersonEmoji, setEditPersonEmoji] = useState('👤')
+  const [editPersonColor, setEditPersonColor] = useState('blue')
   const [claudeKey, setClaudeKey] = useState(() => getApiKey())
   const [claudeModel, setClaudeModel] = useState(() => getModel())
   const [keySaved, setKeySaved] = useState(false)
 
   useEffect(() => { load() }, [])
+
+  async function addPerson(e) {
+    e.preventDefault()
+    if (!newPersonName.trim()) return
+    try {
+      const p = await api.addPerson(newPersonName.trim(), newPersonColor, newPersonEmoji)
+      setPersons(prev => [...prev, p].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewPersonName(''); setNewPersonEmoji('👤'); setNewPersonColor('blue')
+    } catch (err) { setError(err.message) }
+  }
+  function startEditPerson(p) {
+    setEditingPersonId(p.id); setEditPersonName(p.name)
+    setEditPersonEmoji(p.emoji || '👤'); setEditPersonColor(p.color || 'blue')
+  }
+  async function savePerson() {
+    try {
+      const updated = await api.updatePerson(editingPersonId, {
+        name: editPersonName.trim(), emoji: editPersonEmoji, color: editPersonColor,
+      })
+      setPersons(prev => prev.map(p => p.id === editingPersonId ? updated : p).sort((a, b) => a.name.localeCompare(b.name)))
+      setEditingPersonId(null)
+    } catch (err) { setError(err.message) }
+  }
+  async function removePerson(id) {
+    if (!confirm('Person löschen? Bestehende Einträge bleiben erhalten, verlieren aber die Zuordnung.')) return
+    try {
+      await api.deletePerson(id)
+      setPersons(prev => prev.filter(p => p.id !== id))
+    } catch (err) { setError(err.message) }
+  }
 
   function saveClaudeSettings(e) {
     e.preventDefault()
@@ -36,8 +76,10 @@ export default function SettingsPage() {
   }
 
   async function load() {
-    try { setCategories(await api.getCategories()) }
-    catch (err) { setError(err.message) }
+    try {
+      const [cats, pers] = await Promise.all([api.getCategories(), api.getPersons()])
+      setCategories(cats); setPersons(pers)
+    } catch (err) { setError(err.message) }
     finally { setLoading(false) }
   }
 
@@ -114,6 +156,86 @@ export default function SettingsPage() {
             {keySaved && <span className="text-sm text-green-600 dark:text-green-400">Gespeichert.</span>}
           </div>
         </form>
+      </section>
+
+      <section className="mb-8">
+        <h3 className="text-lg font-semibold text-fg mb-3">Personen</h3>
+        <p className="text-sm text-muted mb-4">
+          Familienmitglieder, denen Du Wissen zuordnen kannst. Beim Speichern eines Eintrags
+          wird automatisch die in der Seitenleiste ausgewählte Person verwendet.
+        </p>
+
+        <form onSubmit={addPerson} className="bg-surface border border-line rounded-xl p-4 mb-6">
+          <label className="block text-sm text-fg mb-2">Neue Person</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <select
+              value={newPersonEmoji}
+              onChange={e => setNewPersonEmoji(e.target.value)}
+              className="bg-app border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-blue-500"
+              aria-label="Emoji"
+            >
+              {emojiOptions.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <input
+              type="text"
+              placeholder="z. B. Mama, Papa, Lea…"
+              value={newPersonName}
+              onChange={e => setNewPersonName(e.target.value)}
+              className="flex-1 bg-app border border-line rounded-lg px-3 py-2 text-fg placeholder:text-muted focus:outline-none focus:border-blue-500"
+            />
+            <select
+              value={newPersonColor}
+              onChange={e => setNewPersonColor(e.target.value)}
+              className="bg-app border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-blue-500"
+            >
+              {colorOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+            <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium">
+              Hinzufügen
+            </button>
+          </div>
+        </form>
+
+        {loading ? (
+          <p className="text-muted">Lädt…</p>
+        ) : persons.length === 0 ? (
+          <p className="text-muted">Noch keine Personen angelegt.</p>
+        ) : (
+          <ul className="space-y-2">
+            {persons.map(p => (
+              <li key={p.id} className="bg-surface border border-line rounded-xl p-3">
+                {editingPersonId === p.id ? (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select value={editPersonEmoji} onChange={e => setEditPersonEmoji(e.target.value)}
+                      className="bg-app border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-blue-500">
+                      {emojiOptions.map(e => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                    <input type="text" value={editPersonName} onChange={e => setEditPersonName(e.target.value)}
+                      className="flex-1 bg-app border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-blue-500" />
+                    <select value={editPersonColor} onChange={e => setEditPersonColor(e.target.value)}
+                      className="bg-app border border-line rounded-lg px-3 py-2 text-fg focus:outline-none focus:border-blue-500">
+                      {colorOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                    <div className="flex gap-2">
+                      <button onClick={savePerson} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">Speichern</button>
+                      <button onClick={() => setEditingPersonId(null)} className="px-3 py-2 bg-elevated hover:bg-hover text-fg rounded-lg text-sm">Abbrechen</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`px-3 py-1 rounded-full text-sm border inline-flex items-center gap-2 ${colorClass(p.color)}`}>
+                      <span>{p.emoji || '👤'}</span> {p.name}
+                    </span>
+                    <div className="flex gap-2">
+                      <button onClick={() => startEditPerson(p)} className="text-sm text-muted hover:text-fg">Bearbeiten</button>
+                      <button onClick={() => removePerson(p.id)} className="text-sm text-subtle hover:text-red-600 dark:text-red-400">Löschen</button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section>

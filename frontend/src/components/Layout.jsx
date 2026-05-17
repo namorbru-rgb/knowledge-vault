@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { getInitialTheme, setTheme } from '../lib/theme'
+import PersonSwitcher from './PersonSwitcher'
 
 const navItems = [
   { to: '/', label: 'Übersicht', icon: '🏠', exact: true },
@@ -82,6 +83,9 @@ export default function Layout({ session }) {
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
+        </div>
+        <div className="px-3 pt-3">
+          <PersonSwitcher onSelect={closeDrawer} />
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(item => (
