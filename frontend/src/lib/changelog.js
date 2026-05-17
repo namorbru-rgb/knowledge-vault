@@ -1,5 +1,7 @@
 // Versionsverlauf: neueste Einträge zuerst.
-// Neue Einträge bei jeder spürbaren Änderung oben anfügen.
+// Die Versionsnummer (v1, v2, …) wird automatisch aus der Reihenfolge
+// abgeleitet — neue Einträge einfach oben anfügen, dann zählt die App
+// die Version hoch.
 export const changelog = [
   {
     date: '2026-05-17',
