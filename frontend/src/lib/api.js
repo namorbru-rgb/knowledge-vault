@@ -205,17 +205,19 @@ export const api = {
     }
     if (!types || types.includes('links')) {
       const { data } = await sb.from('kv_links')
-        .select('id,title,url,summary,created_at')
+        .select('id,title,url,summary,notes,created_at')
         .eq('user_id', u)
-        .or(`title.ilike.%${query}%,url.ilike.%${query}%,summary.ilike.%${query}%`)
+        .or(`title.ilike.%${query}%,url.ilike.%${query}%,summary.ilike.%${query}%,notes.ilike.%${query}%`)
         .limit(10)
-      ;(data||[]).forEach(r => results.push({ type: 'link', id: r.id, title: r.title || r.url, url: r.url, content: r.summary, created_at: r.created_at }))
+      ;(data||[]).forEach(r => results.push({ type: 'link', id: r.id, title: r.title || r.url, url: r.url, content: r.notes || r.summary, created_at: r.created_at }))
     }
     if (!types || types.includes('videos')) {
-      const { data: vTitle } = await sb.from('kv_videos')
-        .select('id,title,url,description,thumbnail_url,created_at')
-        .eq('user_id', u).ilike('title', `%${query}%`).limit(10)
-      ;(vTitle||[]).forEach(r => results.push({ type: 'video', id: r.id, title: r.title || r.url, url: r.url, content: r.description, thumbnail_url: r.thumbnail_url, created_at: r.created_at }))
+      const { data: vMeta } = await sb.from('kv_videos')
+        .select('id,title,url,description,notes,thumbnail_url,created_at')
+        .eq('user_id', u)
+        .or(`title.ilike.%${query}%,description.ilike.%${query}%,notes.ilike.%${query}%`)
+        .limit(10)
+      ;(vMeta||[]).forEach(r => results.push({ type: 'video', id: r.id, title: r.title || r.url, url: r.url, content: r.notes || r.description, thumbnail_url: r.thumbnail_url, created_at: r.created_at }))
 
       const { data: segs } = await sb.from('kv_video_segments')
         .select('id,video_id,start_time,end_time,text,kv_videos!inner(title,url,thumbnail_url,created_at)')

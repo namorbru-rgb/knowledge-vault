@@ -5,6 +5,14 @@
 export const changelog = [
   {
     date: '2026-05-17',
+    title: 'Suche schliesst eigene Notizen ein',
+    changes: [
+      'Suche findet Treffer in Notiz-Feldern von Videos und Links',
+      'Vorschau im Trefferlisten-Eintrag zeigt jetzt bevorzugt die eigene Notiz',
+    ],
+  },
+  {
+    date: '2026-05-17',
     title: 'Video-Detail mit Notiz, Kategorie & Vorschau',
     changes: [
       'Detailseite zeigt grosse Vorschau (eigenes Thumbnail oder Fallback-Bild über microlink)',
