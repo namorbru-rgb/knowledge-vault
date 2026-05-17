@@ -3,6 +3,7 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { promisify } = require('util');
+const axios = require('axios');
 const supabase = require('../supabase');
 const { getEmbedding } = require('../embeddings');
 const execAsync = promisify(exec);
@@ -10,9 +11,43 @@ const execAsync = promisify(exec);
 const WHISPER_PATH = process.env.WHISPER_PATH || 'whisper';
 const YTDLP_PATH = process.env.YTDLP_PATH || 'yt-dlp';
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
+const FB_COOKIES_FILE = process.env.FB_COOKIES_FILE || '';
 const WORK_DIR = '/tmp/kv-video-work';
 
 if (!fs.existsSync(WORK_DIR)) fs.mkdirSync(WORK_DIR, { recursive: true });
+
+// Facebook-Share-Links (facebook.com/share/v/..., /share/r/...) sind nur
+// Redirects. yt-dlp scheitert daran oft — vorher den finalen URL auflösen.
+async function resolveShareUrl(url) {
+  if (!/^https?:\/\/(?:www\.|m\.)?facebook\.com\/share\//i.test(url)) return url;
+  try {
+    const res = await axios.get(url, {
+      maxRedirects: 10,
+      timeout: 15000,
+      validateStatus: () => true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+      },
+    });
+    const finalUrl = res.request?.res?.responseUrl || res.config?.url || url;
+    if (finalUrl && finalUrl !== url) {
+      console.log('Resolved share URL:', url, '->', finalUrl);
+    }
+    return finalUrl || url;
+  } catch (e) {
+    console.warn('Share URL resolve failed:', url, e.message);
+    return url;
+  }
+}
+
+function cookiesArg() {
+  if (!FB_COOKIES_FILE) return '';
+  if (!fs.existsSync(FB_COOKIES_FILE)) {
+    console.warn('FB_COOKIES_FILE gesetzt, aber Datei fehlt:', FB_COOKIES_FILE);
+    return '';
+  }
+  return `--cookies "${FB_COOKIES_FILE}"`;
+}
 
 async function processVideo(video) {
   console.log('Processing video:', video.id, video.url);
@@ -22,9 +57,12 @@ async function processVideo(video) {
   try {
     await supabase.from('kv_videos').update({ transcript_status: 'processing' }).eq('id', video.id);
 
+    const sourceUrl = await resolveShareUrl(video.url);
+    const cookies = cookiesArg();
+
     // 1. Download video info
     const { stdout: infoJson } = await execAsync(
-      `${YTDLP_PATH} --dump-json --no-playlist "${video.url}"`,
+      `${YTDLP_PATH} ${cookies} --dump-json --no-playlist "${sourceUrl}"`,
       { timeout: 30000 }
     );
     const info = JSON.parse(infoJson);
@@ -36,7 +74,7 @@ async function processVideo(video) {
     // 2. Download audio
     const audioFile = path.join(workDir, 'audio.mp3');
     await execAsync(
-      `${YTDLP_PATH} -x --audio-format mp3 --audio-quality 0 -o "${audioFile}" "${video.url}"`,
+      `${YTDLP_PATH} ${cookies} -x --audio-format mp3 --audio-quality 0 -o "${audioFile}" "${sourceUrl}"`,
       { timeout: 600000 }
     );
 
