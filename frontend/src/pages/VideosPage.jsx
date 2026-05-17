@@ -19,10 +19,13 @@ export default function VideosPage() {
 
   async function load() {
     try {
-      const [vids, pers, cats] = await Promise.all([api.getVideos(), api.getPersons(), api.getCategories()])
+      const [vids, pers, cats] = await Promise.all([
+        api.getVideos().catch(err => { setError(err.message); return [] }),
+        api.getPersons().catch(() => []),
+        api.getCategories().catch(() => []),
+      ])
       setVideos(vids); setPersons(pers); setCategories(cats)
-    } catch (err) { setError(err.message) }
-    finally { setLoading(false) }
+    } finally { setLoading(false) }
   }
 
   const personsById = useMemo(() => Object.fromEntries(persons.map(p => [p.id, p])), [persons])

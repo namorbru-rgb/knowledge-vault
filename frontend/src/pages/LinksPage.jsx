@@ -61,10 +61,13 @@ export default function LinksPage() {
 
   async function load() {
     try {
-      const [ls, cs, ps] = await Promise.all([api.getLinks(), api.getCategories(), api.getPersons()])
+      const [ls, cs, ps] = await Promise.all([
+        api.getLinks().catch(err => { setError(err.message); return [] }),
+        api.getCategories().catch(() => []),
+        api.getPersons().catch(() => []),
+      ])
       setLinks(ls); setCategories(cs); setPersons(ps)
-    } catch (err) { setError(err.message) }
-    finally { setLoading(false) }
+    } finally { setLoading(false) }
   }
 
   async function addLink(e) {
