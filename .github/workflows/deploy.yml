@@ -20,6 +20,8 @@ jobs:
           VITE_SUPABASE_URL: https://nixakeaiibzhesdwtelw.supabase.co
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_URL: http://187.124.18.102:3100
+          VITE_SHARED_USER_EMAIL: ${{ secrets.VITE_SHARED_USER_EMAIL }}
+          VITE_SHARED_USER_PASSWORD: ${{ secrets.VITE_SHARED_USER_PASSWORD }}
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:

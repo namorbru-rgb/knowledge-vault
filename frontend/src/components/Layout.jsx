@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { Outlet, NavLink } from 'react-router-dom'
 
 const navItems = [
   { to: '/', label: 'Übersicht', icon: '🏠', exact: true },
@@ -14,14 +13,7 @@ const navItems = [
 ]
 
 export default function Layout({ session }) {
-  const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
-
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    navigate('/login')
-  }
-
   const closeDrawer = () => setDrawerOpen(false)
 
   return (
@@ -62,7 +54,7 @@ export default function Layout({ session }) {
         <div className="p-4 border-b border-slate-700 flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-lg font-bold text-white">🗄️ KnowledgeVault</h1>
-            <p className="text-xs text-slate-400 mt-1 truncate">{session?.user?.email}</p>
+            <p className="text-xs text-slate-400 mt-1 truncate">Familien-Archiv</p>
           </div>
           <button
             onClick={closeDrawer}
@@ -93,14 +85,6 @@ export default function Layout({ session }) {
             </NavLink>
           ))}
         </nav>
-        <div className="p-3 border-t border-slate-700">
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            ← Abmelden
-          </button>
-        </div>
       </aside>
 
       <main className="flex-1 min-w-0 overflow-auto pb-[env(safe-area-inset-bottom)]">
