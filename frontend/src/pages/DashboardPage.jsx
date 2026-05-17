@@ -29,14 +29,14 @@ export default function DashboardPage() {
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
       <div className="flex items-start justify-between gap-3 mb-2">
-        <h2 className="text-2xl font-bold text-white">Übersicht</h2>
+        <h2 className="text-2xl font-bold text-fg">Übersicht</h2>
         <button onClick={() => setShowChangelog(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-slate-300 hover:text-white transition-colors flex-shrink-0"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-elevated border border-line rounded-lg text-xs text-fg hover:text-fg transition-colors flex-shrink-0"
           title="Was hat sich geändert?">
           <span>🕘</span><span className="hidden sm:inline">Versionsverlauf</span>
         </button>
       </div>
-      <p className="text-slate-400 mb-8">Dein Wissen auf einen Blick</p>
+      <p className="text-muted mb-8">Dein Wissen auf einen Blick</p>
 
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
 
@@ -51,12 +51,12 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-        <h3 className="font-semibold text-white mb-4">Schnellzugriff</h3>
+      <div className="bg-surface rounded-xl p-6 border border-line">
+        <h3 className="font-semibold text-fg mb-4">Schnellzugriff</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {cards.map(card => (
             <Link key={card.key} to={card.to}
-              className="flex items-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors">
+              className="flex items-center gap-2 px-4 py-3 bg-elevated hover:bg-hover rounded-lg text-sm text-fg hover:text-fg transition-colors">
               <span>{card.icon}</span> {addLabels[card.key]} hinzufügen
             </Link>
           ))}

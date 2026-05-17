@@ -124,8 +124,8 @@ export default function VoicePage() {
   if (!supported) {
     return (
       <div className="p-4 sm:p-6 md:p-8 max-w-3xl mx-auto">
-        <h2 className="text-2xl font-bold text-white mb-4">Sprach-Assistent</h2>
-        <div className="bg-red-900/30 border border-red-700/50 text-red-200 rounded-xl p-4">
+        <h2 className="text-2xl font-bold text-fg mb-4">Sprach-Assistent</h2>
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-200 rounded-xl p-4">
           Dein Browser unterstützt die Web Speech API leider nicht.
           Getestet funktioniert es aktuell am besten in Chrome/Edge (Desktop und Android).
         </div>
@@ -136,8 +136,8 @@ export default function VoicePage() {
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-3xl mx-auto flex flex-col min-h-[calc(100dvh-3.5rem)] md:min-h-[100dvh]">
       <header className="mb-4 sm:mb-6">
-        <h2 className="text-2xl font-bold text-white">Sprach-Assistent</h2>
-        <p className="text-sm text-slate-400 mt-1">
+        <h2 className="text-2xl font-bold text-fg">Sprach-Assistent</h2>
+        <p className="text-sm text-muted mt-1">
           Drücke auf „Anruf starten" und sprich einfach drauflos – Paperclip antwortet mit Stimme.
         </p>
       </header>
@@ -167,7 +167,7 @@ export default function VoicePage() {
           </button>
         )}
 
-        <label className="flex items-center gap-2 text-sm text-slate-300 select-none">
+        <label className="flex items-center gap-2 text-sm text-fg select-none">
           <input
             type="checkbox"
             checked={requireWake}
@@ -180,7 +180,7 @@ export default function VoicePage() {
         {messages.length > 0 && (
           <button
             onClick={clearChat}
-            className="ml-auto text-sm text-slate-400 hover:text-white"
+            className="ml-auto text-sm text-muted hover:text-fg"
           >
             Verlauf löschen
           </button>
@@ -188,21 +188,21 @@ export default function VoicePage() {
       </div>
 
       {active && (
-        <div className="mb-3 text-xs text-slate-400 flex items-center gap-2">
+        <div className="mb-3 text-xs text-muted flex items-center gap-2">
           <span className={`inline-block w-2 h-2 rounded-full ${busy ? 'bg-amber-400' : 'bg-green-500 animate-pulse'}`} />
           {busy ? 'Paperclip antwortet…' : 'Mikrofon aktiv – ich höre zu.'}
         </div>
       )}
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700/50 text-red-200 rounded-xl p-3 mb-3 text-sm">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-200 rounded-xl p-3 mb-3 text-sm">
           {error}
         </div>
       )}
 
-      <div className="flex-1 bg-slate-800/50 border border-slate-700 rounded-xl p-3 sm:p-4 overflow-y-auto space-y-3">
+      <div className="flex-1 bg-surface/50 border border-line rounded-xl p-3 sm:p-4 overflow-y-auto space-y-3">
         {messages.length === 0 && !interim && (
-          <p className="text-slate-500 text-sm text-center py-8">
+          <p className="text-subtle text-sm text-center py-8">
             Noch keine Unterhaltung. Starte den Anruf und stelle deine erste Frage.
           </p>
         )}
@@ -211,7 +211,7 @@ export default function VoicePage() {
             <div className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
               m.role === 'user'
                 ? 'bg-blue-600 text-white rounded-br-sm'
-                : 'bg-slate-700 text-slate-100 rounded-bl-sm'
+                : 'bg-elevated text-fg rounded-bl-sm'
             }`}>
               {m.content}
             </div>
@@ -219,7 +219,7 @@ export default function VoicePage() {
         ))}
         {interim && (
           <div className="flex justify-end">
-            <div className="max-w-[85%] px-4 py-2 rounded-2xl rounded-br-sm text-sm italic text-blue-200 bg-blue-600/30 border border-blue-600/40">
+            <div className="max-w-[85%] px-4 py-2 rounded-2xl rounded-br-sm text-sm italic text-blue-700 dark:text-blue-200 bg-blue-600/30 border border-blue-600/40">
               {interim}…
             </div>
           </div>
@@ -227,7 +227,7 @@ export default function VoicePage() {
         <div ref={bottomRef} />
       </div>
 
-      <p className="text-xs text-slate-500 mt-3">
+      <p className="text-xs text-subtle mt-3">
         Spracherkennung & -ausgabe laufen direkt im Browser (Web Speech API). Die Anfragen selbst gehen
         mit deinem eigenen Anthropic-Key an die Claude-API.
       </p>

@@ -3,6 +3,16 @@
 export const changelog = [
   {
     date: '2026-05-17',
+    title: 'Frisches Design & Hellmodus',
+    changes: [
+      'Komplett überarbeiteter Look mit Inter-Schrift, feineren Rundungen und sanften Schatten',
+      'Neuer Hellmodus — Umschalter unten in der Seitenleiste (bzw. oben rechts auf dem Handy)',
+      'Theme-Wahl wird gespeichert; folgt zu Beginn der System-Einstellung',
+      'Status- und Akzentfarben passen sich jetzt an Hell/Dunkel an',
+    ],
+  },
+  {
+    date: '2026-05-17',
     title: 'Versionsverlauf, Mobile-Fixes & Auto-Retry',
     changes: [
       'Versionsverlauf rechts oben auf der Übersicht',

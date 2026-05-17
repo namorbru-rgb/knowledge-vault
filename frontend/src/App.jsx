@@ -64,14 +64,14 @@ export default function App() {
   }, [])
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-      <div className="text-slate-400 text-lg">Verbinde…</div>
+    <div className="min-h-screen bg-app flex items-center justify-center">
+      <div className="text-muted text-lg">Verbinde…</div>
     </div>
   )
 
   if (!session) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-red-900/30 border border-red-700/50 text-red-200 rounded-xl p-4 text-sm">
+    <div className="min-h-screen bg-app flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-200 rounded-xl p-4 text-sm">
         {authError || 'Keine Verbindung möglich.'}
       </div>
     </div>
