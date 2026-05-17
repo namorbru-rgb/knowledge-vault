@@ -67,8 +67,18 @@ async function processVideo(video) {
       { timeout: 30000 }
     );
     const info = JSON.parse(infoJson);
-    const title = info.title || video.url;
     const description = info.description || '';
+    // yt-dlp setzt bei Facebook-Videos oft "241K views · 4.8K reactions"
+    // als Title. Falls das so aussieht, lieber erste Zeile der
+    // Description nehmen (= eigentlicher Caption-Text).
+    const rawTitle = (info.title || '').trim();
+    const isStatsTitle = /^\d+([.,]\d+)?\s*[KMB]?\s*(views?|aufrufe)\b/i.test(rawTitle)
+      || /\breactions?\b|\breaktionen\b/i.test(rawTitle);
+    let title = rawTitle || video.url;
+    if (isStatsTitle && description) {
+      const firstLine = description.split(/\r?\n/).map(s => s.trim()).find(Boolean);
+      if (firstLine) title = firstLine.slice(0, 200);
+    }
     const duration = info.duration || 0;
     const thumbnail = info.thumbnail || '';
 
