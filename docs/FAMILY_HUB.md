@@ -1,156 +1,140 @@
-# Family Hub — implementation and reviewed rollout
+# Family Hub — operations and access contract
 
 Issue: https://github.com/namorbru-rgb/knowledge-vault/issues/22
+App: https://namorbru-rgb.github.io/knowledge-vault/
 
-## Verified architecture and urgent live findings (2026-10-13)
+## Rollout on 2026-10-13
 
-Read-only project inspection confirms `nixakeaiibzhesdwtelw` is the existing healthy
-Supabase project in eu-central-2, PostgreSQL 17. The browser talks directly to the
-Data API/Storage, so backend-only checks cannot secure it. Several live `kv_*`
-tables have permissive `USING(true)` / `WITH CHECK(true)` policies for anonymous
-and authenticated roles. `kv-media` is public. Unrelated apps share this project
-and have their own Storage policies. No production schema, user, file or data was
-changed during this implementation.
+The user authorised finishing the rollout after the initial draft PR. Both the
+database and HTTPS Edge runtime now use the existing project
+`nixakeaiibzhesdwtelw`; no new repository or Supabase project was created.
 
-The previous frontend contained shared sign-in credentials and exported them in
-build settings. Removing them from the new build does not revoke previous bundles
-or sessions. Before rollout, the operator must rotate that account password,
-revoke existing sessions and review API keys and access logs. Do not copy the
-password into an issue, PR, log or document. Treat the previous shared account's
-Knowledge records as existing data; do not bulk change ownership or delete them.
-Individual users will see only their own records. Plan any consented redistribution
-of legacy Knowledge separately.
+- Actual Knowledge schema was snapshotted and the migrations rehearsed locally.
+- Existing Knowledge rows, policies, bucket settings and object metadata were
+  copied into non-exposed schema `fh_rollout_backup_20261013` before migration.
+  This backup has no privileges for anonymous/authenticated users.
+- All five migrations in `supabase/migrations` were applied. Existing inventories
+  remain 499 videos, 12 links, 2 photos and 1 note. Both `kv-media` and `fh-vault`
+  are private. No Knowledge ownership was reassigned.
+- The old published shared password was rotated and all sessions for that shared
+  account revoked; verification found zero remaining sessions. Its existing data
+  remains under that account. The account holder must set a personal password.
+- `family-api` is deployed over HTTPS. Browser requests validate the personal JWT
+  and an active Auth session; cron requests use a separate Vault-held secret.
+  Gateway JWT verification is disabled because the body authenticates both of
+  these distinct flows explicitly. Legacy Knowledge API keys are denied.
+- Cron job `family-hub-reminders` runs every minute. VAPID and cron credentials are
+  in Supabase Vault, not GitHub/source. Notifications contain no health details.
+- Hosted synthetic-account checks passed: login/session enforcement, owner and
+  stranger isolation, admin without permission, read/edit grants, revocation,
+  private Storage upload/sign/download, unauthenticated rejection and revoked JWT.
+  Synthetic accounts/resources/files are removed after verification.
+- Security advisors were checked. Exposed Hub RPCs now use invoker wrappers;
+  privileged authenticated implementations are in `fh_private` with auth checks,
+  fixed empty search paths and PUBLIC EXECUTE revoked.
 
-## Data/access contracts
+The temporary administrative rollout function is retired after verification and
+is not a supported app or agent endpoint. It must never be used as a permanent
+service-role proxy.
 
-- `kv_profiles` and `kv_persons` are retained. New `fh_kind` defaults to `legacy`;
-  Knowledge labels are not automatically adult accounts or health profiles.
-  Each account explicitly creates its own `self` profile or a child it is responsible
-  for. Adult data stays under that adult's login. No real people are seeded.
-- `fh_families` / `fh_members` hold family administration, separate from sensitive
-  data permissions. Creation/add-member RPCs validate the authenticated caller.
-  Invite adults via Supabase Auth administration, then add the account UUID to the
-  family. Add the two requested administrators only after verifying their accounts;
-  never promote by an email string or user-editable metadata. Children have no login.
-- `fh_resources` stores health entries and document metadata. Owner, person, kind
-  and file identity are immutable. `fh_grants` explicitly grants `read` or `edit`
-  for one resource; only its owner manages grants/deletion. Family admin is not an
-  access rule. Child access can be shared with another caregiver per resource.
-- `fh_document_refs` links one stored document to multiple same-owner/same-person
-  resources. Sharing a case does not share its documents or other case entries.
-- `fh_doses` records one daily checkbox per medication/time slot. Dates use local
-  calendar days, not UTC midnight. Plans support medication, vitamins and supplements.
-- `fh_extractions` stores pending proposals, document hash/source/model and
-  confidence. Only a trusted backend inserts proposals; only the owner can confirm
-  or reject via an atomic RPC. Re-review is denied. Confirmed output remains in a
-  separate metadata field and is never an automatic diagnosis or medication order.
-  Confidence is a model estimate, not calibrated clinical certainty.
-- `fh_audit` records changes, shares, doses, references, extraction reviews and
-  authorised document-opening requests, without copying health payloads. Users
-  cannot edit the audit. Direct Storage requests/logs are separate; the app log is
-  not a tamper-proof audit of every possible database read.
-- `fh-vault` accepts PDF/JPEG/PNG/WebP up to 20 MB and is private. Signed links last
-  60 seconds (Knowledge photos: 300 seconds). Revocation denies new links; already
-  issued links remain usable until expiration. Storage objects are not overwritten.
-- Restrictive ownership fences protect Knowledge even while old permissive
-  policies exist. Bucket fences protect only `kv-media` and `fh-vault`, preserving
-  unrelated apps. Internal definer lookup functions use an empty search path,
-  check `auth.uid()`, live in `fh_private`, and have PUBLIC EXECUTE revoked. They
-  resolve policy recursion without granting admin access to data.
+## External dependencies still requiring account-owner action
 
-## Functionality and operating limits
+Real-provider smoke tests failed on account configuration: Anthropic reported
+insufficient credit; OpenAI rejected its configured key (HTTP 401). No real
+document/health data was used for these tests. The app supports either provider,
+names the selected provider before consent and fails closed if its access fails.
+Set a valid `OPENAI_API_KEY`/`OPENAI_KEY` or fund the existing Anthropic account
+(`ANTHROPIC_KEY`/`ANTHROPIC_API_KEY`) in Edge Function secrets. Do not send keys in
+chat or put them in GitHub. AI fields are never accepted automatically.
 
-The hub registers Knowledge, Health and Documents and reserves stable module IDs
-for insurance, contracts, finance, accounting, tax and calendar. Existing Knowledge
-routes remain accessible. Health supports symptom catalog, intensity, timeline,
-cases, visits, hospitalisations, examinations, prescriptions, dosage schedules,
-daily checks, nutrition favorites, optional dictation and in-app reminders.
-Medical details currently use an editable notes field; this is not an electronic
-prescribing system. Background/push reminders are not implemented. Dictation
-requires an explicit action and may use the browser vendor's speech service.
+The project's Auth redirect allow-list currently rejects the GitHub Pages return
+URL and falls back to localhost. The browser's logged-in Supabase account did not
+have access to this project, so no unrelated Auth settings were changed. An
+operator with the correct dashboard account should add
+`https://namorbru-rgb.github.io/knowledge-vault/` to allowed redirect URLs, preserving
+all existing app URLs. The login screen already supports pasting the original
+Supabase confirmation/recovery link and verifying it directly, independent of that
+redirect. Users request their own email; Codex did not email other people.
 
-Optional AI extraction needs an HTTPS backend plus `ANTHROPIC_API_KEY` and a
-reviewed active `FAMILY_EXTRACTION_MODEL`. Each request requires the owner to
-consent to sending that single file to Anthropic. Processing uses bounded memory,
-no public URL, no shared temp file, no file/content logging and no automatic write
-of accepted data. Provider errors fail closed. Model calls were not performed with
-real data or paid credentials in verification. Extraction is limited to three requests
-per user/hour and three concurrent requests per process. Shared limits at the proxy
-are required for multiple workers. Operator consent to provider retention/region
-and a real synthetic-file provider smoke test are rollout
-requirements. No existing medical records have been imported; an import of an
-adult's records requires that adult's explicit consent.
+Roman and Katarina already have confirmed Auth accounts. No real health/child
+profiles, family roster or adult medical records were automatically seeded. Adults
+set up their own profiles and consent to shares; family admins are assigned from
+verified account IDs through the Family screen. Luzia's email/account activation
+needs her chosen address. Children remain profiles under a caregiver, without login.
 
-## API for humans and future authorised agents
+## Data and permission rules
 
-Use `Authorization: Bearer <personal Supabase access token>` over HTTPS. Legacy
-Knowledge API keys are explicitly denied on `/api/family`; they have no sensitive
-scopes. Responses use `Cache-Control: no-store`. The backend uses the verified
-user's JWT for database and Storage calls, plus explicit owner/edit checks.
+- Existing `kv_profiles` and `kv_persons` remain intact. New `fh_kind='legacy'`
+  preserves Knowledge labels. `self` and `child` classification is explicit.
+- `fh_families` / `fh_members` administer a family. Admin status never grants
+  health, financial or document access. Roles do not come from editable JWT metadata.
+- `fh_resources` stores health and document metadata. Owner/person/kind/file
+  identity cannot be reassigned. Restrictive fences also require a current Auth
+  session, so revoking a session blocks an otherwise unexpired JWT immediately.
+- `fh_grants` authorises one resource as read/edit. Only its owner controls shares
+  and deletion. Linked case entries/documents each need their own explicit share.
+- `fh_document_refs` links one file to multiple same-owner/same-person resources.
+- `fh_doses` deduplicates one check per local date and prescribed time slot. Only
+  medication resources with valid HH:MM schedules accept checks.
+- `fh_extractions` holds proposals and source document hash/provider/model plus
+  confidence. Trusted backend inserts only a proposal for the verified owner's
+  selected file. Owner-only confirmation is atomic and cannot be repeated. Model
+  confidence is an uncalibrated estimate, not clinical certainty.
+- `fh_audit` logs writes, shares, dose checks, references, document opening requests
+  and extraction reviews without copying medical payloads. Direct Data/Storage
+  reads have separate platform logs; this is not a tamper-proof log of every read.
+- `fh-vault` accepts PDF/JPEG/PNG/WebP up to 20 MB. Document links expire after
+  60 seconds; Knowledge photo links after 300 seconds. A previously issued signed
+  link survives share revocation until expiry. Storage does not overwrite objects.
+- Knowledge ownership and Storage fences override legacy open policies, while
+  preserving unrelated apps in the shared project. Photo metadata must point to
+  its owner's own folder, including for legacy service-role workers; traversal and
+  encoded paths are rejected.
 
-| Method/path | Purpose |
-| --- | --- |
-| GET `/api/family/resources` | RLS-visible resources (bounded to 500) |
-| POST `/api/family/resources` | Owner-bound health entry, allowlisted fields |
-| PATCH `/api/family/resources/:id` | Owner or explicit edit grant |
-| POST `/api/family/documents/:id/url` | Authorised 60-second link, audited |
-| POST `/api/family/documents/:id/extraction` | Owner only; `{ "consent": true }` |
-| POST `/api/family/resources/:id/grants` | Owner's explicit recipient/permission |
-| DELETE `/api/family/resources/:id/grants/:recipient` | Owner's revocation |
+## Reminders, AI and API operation
 
-The browser uses the same RLS tables/RPCs for its forms and uploads. Any future MCP
-adapter must use personal authorisation and show a concrete proposed write before
-execution; no unrestricted service-role MCP endpoint exists in this change.
+Health supports symptoms/intensity/timeline, cases, visits, hospitalisations,
+examinations, prescriptions, medication/vitamin/supplement schedules, daily checks,
+nutrition favorites and optional dictation. Clinical detail uses editable notes,
+not automatic prescribing. Browser dictation starts only on user action and may
+use the browser vendor's speech service.
 
-## Validation and safe rollout
+Push is opt-in per device from Health. On iOS/iPadOS install the app on the Home
+Screen first. Device subscriptions belong to a personal Auth session and are
+removed when that session is revoked. Daily schedule calculations use the device's
+IANA time zone. The outbox deduplicates deliveries, leases jobs, retries failures
+up to three times and removes expired subscriptions. Push endpoints are restricted
+to Chrome/Firefox/Apple services; arbitrary URLs cannot be used as a network proxy.
+Operating-system permissions, connectivity and notification delivery still apply.
 
-The mobile browser test runs with `npm run test:browser` after
-`npx playwright install chromium`. It mocks remote services using synthetic data
-and covers login, a recurring health entry, Documents, Knowledge and logout.
+AI requests explicitly consent to one provider; there is no silent cross-provider
+fallback. Extraction uses bounded memory, no public URLs/temp files/content logs
+and no model-selected database actions. The database enforces a shared three-per-
+user/hour quota and at most three active jobs. Provider processing/retention follows
+that provider's terms; OpenAI Responses calls use `store:false`.
+
+The browser uses RLS tables and RPCs for its forms. The live Edge actions are
+`status`, `push-config`, `extraction-config`, `extract` and secret-authenticated
+`dispatch`. A future MCP adapter must preserve personal authorisation and confirm
+concrete writes. The optional Node `/api/family` adapter retains its owner/edit
+checks and never gives legacy API keys sensitive-data scopes.
+
+## Verification and recovery
 
 Run `npm ci`, `npm ci --prefix backend`, `npm ci --prefix frontend`, `npm test`,
-`npm run build`, plus production dependency audits. PostgreSQL/PGlite tests use
-synthetic users and simulate the live permissive policies: owner/stranger/admin,
-grants, revocation, reassignment, Storage, extraction confirmation and Knowledge
-regression. PGlite does not exercise the hosted Storage API/JWT validation or
-production defaults. Those require a staging rehearsal with the deployed schema.
-Frontend build-tool transitive advisories remain in Tailwind 3; production dependency
-audits pass. Build only trusted source, never expose the development server publicly.
+`npm run test:browser` (after `npx playwright install chromium`) and `npm run build`.
+Production dependency audits pass. Tailwind 3 build-time transitive advisories
+remain; do not expose development servers or compile untrusted source.
 
-1. Review the PR; do not merge/deploy automatically. Back up the existing schema,
-   data, policies and bucket configuration. Verify the actual backend environment's
-   SUPABASE_URL and frontend build URL both match the inspected project.
-2. Rehearse migration against a database restored from a schema snapshot. Historical
-   `database/schema.sql` is not a fresh-install baseline (it refers to tables before
-   their creation). Do not rerun it on production. Inventory any definer functions
-   in the full restored schema; ensure no pre-existing RPC bypass exposes Knowledge.
-3. Apply `supabase/migrations/20261013185309_family_hub.sql` once through the
-   operator's reviewed migration process. The transaction is atomic; a second apply
-   deliberately fails rather than silently duplicating/replacing policies. No online
-   migration was applied by Codex. Refresh the Data API schema cache if needed.
-4. Rotate/revoke the old shared credentials/sessions. Create separate invited accounts,
-   verify identities and admin roles, and set up health profiles explicitly. No
-   automatic real-person seed or old-health-record import is permitted.
-5. Run hosted RLS/Storage/auth tests using synthetic accounts, including unauthenticated
-   public URLs, an admin without grants, signed-link expiry and a revoked grant. Run
-   Supabase security advisors and review new findings before enabling uploads.
-6. Configure backend `SUPABASE_URL`, `SUPABASE_ANON_KEY`, service key (server only),
-   HTTPS/CORS, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and optional
-   `VITE_FAMILY_API_URL` (repository variable). Secrets never go in source control.
-7. Deploy backend and reviewed frontend only after migration and hosted tests pass.
-   The existing main push workflow deploys GitHub Pages; do not merge ahead of this
-   gate. The existing published URL is not evidence this version has been deployed.
+Keep all security fences/private buckets on recovery. After runtime installation,
+rollback means disabling new module routes and the reminder cron while retaining
+the schema/data, then repairing forward. `database/rollback_family_hub.sql` only
+accepts an unused initial migration and refuses both real data and installed runtime.
+Never restore the old shared-login/public-storage build. Backups in the private
+schema require an authorised database operator; never grant them to app clients.
 
-## Rollback
-
-Keep restrictive security fences and private `kv-media` on every rollback. Never
-restore the previous shared-login build or public Storage installer. Prefer turning
-off the new module routes and retaining the additive schema/data while repairing.
-`database/rollback_family_hub.sql` is only for an unused migration: it refuses to run
-once families, resources or vault objects exist. After use, back up/export new data
-and arrange a reviewed data-preserving recovery; do not drop the new tables. A
-failed migration transaction rolls back automatically without changing Knowledge.
-
-Sources consulted: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
-[Storage access control](https://supabase.com/docs/guides/storage/security/access-control),
-[Claude PDF input](https://platform.claude.com/docs/en/build-with-claude/pdf-support).
+Sources: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[Storage access](https://supabase.com/docs/guides/storage/security/access-control),
+[scheduled functions](https://supabase.com/docs/guides/functions/schedule-functions),
+[Web Push](https://github.com/web-push-libs/web-push),
+[OpenAI file inputs](https://developers.openai.com/api/docs/guides/file-inputs).

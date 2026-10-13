@@ -4,7 +4,7 @@ Personal knowledge archive for videos, links, photos, and notes with AI-powered 
 
 Family Hub extension (Issue #22): personal logins, health and private documents.
 Review [architecture, security findings, migration and rollback](docs/FAMILY_HUB.md)
-before deploying this branch. The production database has not been migrated.
+for the live deployment, access rules and remaining provider/account configuration.
 
 ## Stack
 

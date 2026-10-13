@@ -5,6 +5,16 @@
 export const changelog = [
   {
     date: '2026-10-13',
+    title: 'Family Hub: Hintergrund-Erinnerungen und persönliche Passwort-Einrichtung',
+    changes: [
+      'Opt-in Push-Erinnerungen mit privatem Sperrbildschirmtext',
+      'Widerrufene Sitzungen verlieren sofort den Datenzugriff',
+      'Persönliche Anmeldung und Bestätigungslinks direkt in der App',
+      'KI-Anbieter wird vor jeder ausdrücklich bestätigten Übermittlung genannt',
+    ],
+  },
+  {
+    date: '2026-10-13',
     title: 'Family Hub: persönliche Konten, Gesundheit und privater Tresor',
     changes: [
       'Modulare Startseite mit bestehendem Knowledge-Archiv',

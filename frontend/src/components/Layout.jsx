@@ -3,6 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom'
 import { getInitialTheme, setTheme } from '../lib/theme'
 import PersonSwitcher from './PersonSwitcher'
 import { supabase } from '../lib/supabase'
+import { disablePush } from '../lib/push'
 
 const navItems = [
   { to: '/', label: 'Übersicht', icon: '🏠', exact: true },
@@ -113,7 +114,7 @@ export default function Layout({ session }) {
           ))}
         </nav>
         <div className="p-3 border-t border-line">
-          <button className="w-full text-sm text-muted py-3" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem('kv.activePersonId'); window.location.reload() }}>Abmelden</button>
+          <button className="w-full text-sm text-muted py-3" onClick={async () => { try{await disablePush()}catch{} await supabase.auth.signOut(); localStorage.removeItem('kv.activePersonId'); window.location.reload() }}>Abmelden</button>
           <button
             onClick={toggleTheme}
             className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:bg-elevated hover:text-fg transition-colors"

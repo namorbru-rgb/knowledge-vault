@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { family } from '../lib/family'
+import PasswordSettings from '../components/PasswordSettings'
 export default function FamilyPage() {
   const [persons, setPersons] = useState([]), [members, setMembers] = useState([]), [families, setFamilies] = useState([]), [audit,setAudit] = useState([])
   const [userId,setUserId] = useState(''), [error,setError] = useState(''), [busy,setBusy] = useState(false)
@@ -10,6 +11,7 @@ export default function FamilyPage() {
   async function run(e,action) { e.preventDefault(); setBusy(true); setError(''); try { await action(); await load() } catch(e) { setError(e.message) } finally { setBusy(false) } }
   return <div className="hub-page space-y-5">
     <h1 className="text-2xl font-bold">Familie & persönliche Profile</h1>
+    <PasswordSettings />
     <p className="text-muted">Jeder Erwachsene meldet sich selbst an. Knowledge-Personen sind Zuordnungen und keine Benutzerkonten. Kinderprofile verwaltet ein Sorgeberechtigter.</p>
     {error && <p role="alert" className="text-red-500">{error}</p>}
     <div className="hub-card"><p>Deine Konto-ID (für eine Einladung):</p><code className="text-sm break-all">{userId}</code></div>

@@ -3,12 +3,14 @@ const Anthropic = require('@anthropic-ai/sdk');
 const fs = require('fs');
 const supabase = require('../supabase');
 const { getEmbedding } = require('../embeddings');
+const { ownsPhotoPath } = require('../storageAccess');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function analyzePhoto(photo) {
   console.log('Processing photo:', photo.id);
   try {
+    if (!ownsPhotoPath(photo.storage_path,photo.user_id)) throw new Error('Photo owner/path mismatch');
     await supabase.from('kv_photos').update({ status: 'processing' }).eq('id', photo.id);
 
     // Download from Supabase Storage

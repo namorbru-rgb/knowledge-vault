@@ -17,12 +17,14 @@ import HubPage from './pages/HubPage'
 import HealthPage from './pages/HealthPage'
 import DocumentsPage from './pages/DocumentsPage'
 import FamilyPage from './pages/FamilyPage'
+import PasswordSettings from './components/PasswordSettings'
 
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState('')
+  const [recovery,setRecovery]=useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -41,7 +43,8 @@ export default function App() {
 
     ensureSession().catch(() => { if (!cancelled) { setAuthError('Anmeldung konnte nicht geladen werden.'); setLoading(false) } })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if(event==='PASSWORD_RECOVERY')setRecovery(true)
       setSession(s)
       if (s) setAuthToken(s.access_token)
       else setAuthToken(null)
@@ -56,6 +59,7 @@ export default function App() {
   )
 
   if (!session) return <LoginPage initialError={authError} />
+  if (recovery) return <main className="hub-page"><PasswordSettings onDone={()=>setRecovery(false)}/></main>
 
   return (
     <Routes>

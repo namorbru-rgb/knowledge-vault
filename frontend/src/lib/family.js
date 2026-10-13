@@ -31,9 +31,11 @@ export const family = {
     await result(sb.rpc('fh_record_open', { p_id: row.id }))
     return data.signedUrl
   },
-  requestExtraction: async row => {
+  extractionConfig:async()=>{const {data,error}=await sb.functions.invoke('family-api',{body:{action:'extraction-config'}});if(error)return {providers:[]};return data},
+  requestExtraction: async (row,provider) => {
     const endpoint=import.meta.env.VITE_FAMILY_API_URL
-    if (!endpoint || !endpoint.startsWith('https://')) throw new Error('Für KI-Vorschläge muss ein sicherer Family-API-Endpunkt konfiguriert sein.')
+    if(!endpoint){const {data,error}=await sb.functions.invoke('family-api',{body:{action:'extract',documentId:row.id,consent:true,provider}});if(error){const problem=await error.context?.json?.().catch(()=>({}));throw new Error(problem?.stage==='provider_credit'?'Der gewählte KI-Anbieter hat kein verfügbares Guthaben.':problem?.stage==='provider_http_401'?'Der hinterlegte KI-Zugang ist ungültig und muss aktualisiert werden.':'KI-Vorschlag konnte nicht erstellt werden.')}return data}
+    if (!endpoint.startsWith('https://')) throw new Error('Ein sicherer Family-API-Endpunkt ist erforderlich.')
     const { data: { session } }=await sb.auth.getSession()
     if (!session) throw new Error('Bitte anmelden.')
     const response=await fetch(`${endpoint.replace(/\/$/,'')}/api/family/documents/${row.id}/extraction`, { method:'POST', headers:{ Authorization:`Bearer ${session.access_token}`, 'Content-Type':'application/json' }, body:JSON.stringify({ consent:true }) })

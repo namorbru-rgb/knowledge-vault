@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { family, kinds, symptomCatalog, localDay, localDateTime } from '../lib/family'
 import ResourceSharing from '../components/ResourceSharing'
+import PushSettings from '../components/PushSettings'
 
 export default function HealthPage() {
   const [rows,setRows] = useState([]), [persons,setPersons] = useState([]), [members,setMembers] = useState([]), [grants,setGrants] = useState([]), [doses,setDoses] = useState([])
@@ -41,6 +42,7 @@ export default function HealthPage() {
     <h1 className="text-2xl font-bold">Gesundheit</h1>
     <p className="text-muted">Dein Verlauf und ausdrücklich mit dir geteilte Einträge.</p>
     {error && <p role="alert" className="text-red-500">{error}</p>}
+    <PushSettings />
     {!persons.length ? <Link to="/family" className="hub-button inline-block">Zuerst ein persönliches Profil anlegen</Link> : <form onSubmit={save} className="hub-card space-y-4">
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="hub-label">Profil<select className="hub-input" value={personId} onChange={e => setPersonId(e.target.value)}>{persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
@@ -65,7 +67,7 @@ export default function HealthPage() {
       })}</div></div>)}
       {!rows.some(r => r.kind==='medication') && <p className="text-muted">Noch kein Dosierungsplan angelegt.</p>}
     </section>
-    <section className="hub-card"><h2 className="font-semibold mb-2">Erinnerungen</h2><p className="text-xs text-muted mb-2">Termine werden beim Öffnen der App angezeigt. Benachrichtigungen im Hintergrund sind noch nicht aktiviert.</p>{rows.filter(r => ['reminder','visit','examination'].includes(r.kind) && localDay(new Date(r.occurred_at))>=today).sort((a,b) => a.occurred_at.localeCompare(b.occurred_at)).map(r => <p key={r.id}>{new Date(r.occurred_at).toLocaleString()} · {r.title}</p>)}</section>
+    <section className="hub-card"><h2 className="font-semibold mb-2">Erinnerungen</h2><p className="text-xs text-muted mb-2">Aktiviere die Hintergrund-Erinnerungen oben, um auf diesem Gerät auch bei geschlossener App benachrichtigt zu werden.</p>{rows.filter(r => ['reminder','visit','examination'].includes(r.kind) && localDay(new Date(r.occurred_at))>=today).sort((a,b) => a.occurred_at.localeCompare(b.occurred_at)).map(r => <p key={r.id}>{new Date(r.occurred_at).toLocaleString()} · {r.title}</p>)}</section>
     <label className="hub-label">Verlauf filtern<select className="hub-input" value={filter} onChange={e => setFilter(e.target.value)}><option value="">Alle sichtbaren Profile</option>{persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
     <div className="grid sm:grid-cols-2 gap-4">{visible.map(r => <article key={r.id} className="hub-card space-y-2">
       <p className="text-xs text-muted">{kinds[r.kind]} · {new Date(r.occurred_at).toLocaleString()} · {persons.find(p => p.id===r.person_id)?.name || 'Geteiltes Profil'}</p>

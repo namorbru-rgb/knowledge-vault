@@ -2,6 +2,9 @@
 -- required once any resource exists. Keep Knowledge ownership fences/private media.
 begin;
 do $$ begin
+ if to_regclass('public.fh_push_subscriptions') is not null then
+  raise exception 'Runtime installed: retain schema/security, disable module routes and cron for a data-preserving rollback.';
+ end if;
  if exists(select 1 from public.fh_resources) or exists(select 1 from public.fh_families)
     or exists(select 1 from storage.objects where bucket_id='fh-vault') then
   raise exception 'Family Hub contains data: rollback refused. Back up and plan a data-preserving restore.';
