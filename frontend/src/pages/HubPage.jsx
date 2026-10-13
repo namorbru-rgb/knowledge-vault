@@ -1,6 +1,9 @@
-import { Link } from 'react-router-dom'
+import { Link,useNavigate } from 'react-router-dom'
+import {useEffect} from 'react'
 import { modules } from '../lib/modules'
 export default function HubPage() {
+  const navigate=useNavigate()
+  useEffect(()=>{if(new URLSearchParams(window.location.search).get('open')==='health')navigate('/health',{replace:true})},[navigate])
   return <div className="hub-page">
     <h1 className="text-3xl font-bold text-fg">Dein Family Hub</h1>
     <p className="text-muted mt-2 mb-6">Wissen sammeln. Gesundheit begleiten. Dokumente sicher aufbewahren.</p>
