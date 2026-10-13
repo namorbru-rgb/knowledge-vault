@@ -12,9 +12,12 @@ import SearchPage from './pages/SearchPage'
 import SettingsPage from './pages/SettingsPage'
 import VoicePage from './pages/VoicePage'
 import Layout from './components/Layout'
+import LoginPage from './pages/LoginPage'
+import HubPage from './pages/HubPage'
+import HealthPage from './pages/HealthPage'
+import DocumentsPage from './pages/DocumentsPage'
+import FamilyPage from './pages/FamilyPage'
 
-const SHARED_EMAIL = import.meta.env.VITE_SHARED_USER_EMAIL || 'katarina.bruderer@kama-gmbh.ch'
-const SHARED_PASSWORD = import.meta.env.VITE_SHARED_USER_PASSWORD || 'Komens2701'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -33,27 +36,10 @@ export default function App() {
         setLoading(false)
         return
       }
-      if (!SHARED_EMAIL || !SHARED_PASSWORD) {
-        setAuthError('Geteilte Anmeldedaten fehlen: VITE_SHARED_USER_EMAIL und VITE_SHARED_USER_PASSWORD im Build-Setup setzen.')
-        setLoading(false)
-        return
-      }
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: SHARED_EMAIL,
-        password: SHARED_PASSWORD,
-      })
-      if (cancelled) return
-      if (error) {
-        setAuthError('Automatische Anmeldung fehlgeschlagen: ' + error.message)
-        setLoading(false)
-        return
-      }
-      setSession(data.session)
-      if (data.session) setAuthToken(data.session.access_token)
       setLoading(false)
     }
 
-    ensureSession()
+    ensureSession().catch(() => { if (!cancelled) { setAuthError('Anmeldung konnte nicht geladen werden.'); setLoading(false) } })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
       setSession(s)
@@ -69,18 +55,16 @@ export default function App() {
     </div>
   )
 
-  if (!session) return (
-    <div className="min-h-screen bg-app flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-200 rounded-xl p-4 text-sm">
-        {authError || 'Keine Verbindung möglich.'}
-      </div>
-    </div>
-  )
+  if (!session) return <LoginPage initialError={authError} />
 
   return (
     <Routes>
-      <Route path="/" element={<Layout session={session} />}>
-        <Route index element={<DashboardPage />} />
+      <Route path="/" element={<Layout key={session.user.id} session={session} />}>
+        <Route index element={<HubPage />} />
+        <Route path="knowledge" element={<DashboardPage />} />
+        <Route path="health" element={<HealthPage />} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="family" element={<FamilyPage />} />
         <Route path="videos" element={<VideosPage />} />
         <Route path="videos/:id" element={<VideoDetailPage />} />
         <Route path="links" element={<LinksPage />} />

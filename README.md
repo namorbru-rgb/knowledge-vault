@@ -2,6 +2,10 @@
 
 Personal knowledge archive for videos, links, photos, and notes with AI-powered semantic search.
 
+Family Hub extension (Issue #22): personal logins, health and private documents.
+Review [architecture, security findings, migration and rollback](docs/FAMILY_HUB.md)
+before deploying this branch. The production database has not been migrated.
+
 ## Stack
 
 - **Frontend**: React + Vite + Tailwind → GitHub Pages

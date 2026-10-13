@@ -3,7 +3,7 @@ const supabase = require('./supabase');
 require('dotenv').config({ path: __dirname + '/../../.env' });
 
 // Middleware: validate JWT or API key
-async function authMiddleware(req, res, next) {
+async function verifyRequest(req, res, next) {
   const authHeader = req.headers['authorization'];
   const apiKey = req.headers['x-api-key'];
 
@@ -21,6 +21,7 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Invalid API key' });
     }
     req.userId = data.user_id;
+    req.db = supabase; // Legacy API keys remain limited to owner-filtered Knowledge routes.
     return next();
   }
 
@@ -44,7 +45,17 @@ async function authMiddleware(req, res, next) {
 
   req.userId = user.id;
   req.user = user;
+  // Use the verified user's JWT for every API database/storage request; workers
+  // retain their separate service client. Never expose that client via Family Hub.
+  req.db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   next();
 }
 
+async function authMiddleware(req,res,next) {
+  try { await verifyRequest(req,res,next); }
+  catch { res.status(503).json({ error:'Authentication service unavailable' }); }
+}
 module.exports = { authMiddleware };

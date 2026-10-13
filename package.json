@@ -1,0 +1,13 @@
+{
+  "name": "family-hub-verification",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test",
+    "build": "npm run build --prefix frontend"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.9",
+    "@playwright/test": "1.64.0"
+  }
+}

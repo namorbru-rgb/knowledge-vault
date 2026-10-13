@@ -1,0 +1,46 @@
+import { test,expect } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
+const uid='00000000-0000-4000-8000-000000000001', pid='00000000-0000-4000-8000-000000000011'
+const user={ id:uid,aud:'authenticated',role:'authenticated',email:'synthetic@example.invalid',app_metadata:{provider:'email'},user_metadata:{},created_at:new Date().toISOString() }
+const jwt=`${Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')}.${Buffer.from(JSON.stringify({sub:uid,exp:Math.floor(Date.now()/1000)+3600,aud:'authenticated',role:'authenticated'})).toString('base64url')}.synthetic`
+test('mobile personal login, module navigation and recurring health entry without external data',async ({page}) => {
+  let rows=[]
+  await page.route('https://**/*',async route => {
+    const url=new URL(route.request().url())
+    if (!url.hostname.endsWith('.supabase.co')) return route.abort()
+    const method=route.request().method()
+    let data=[]
+    if (url.pathname==='/auth/v1/token') data={access_token:jwt,token_type:'bearer',expires_in:3600,refresh_token:'synthetic-refresh',user}
+    else if (url.pathname==='/auth/v1/user') data=user
+    else if (url.pathname==='/rest/v1/kv_persons') data=[{id:pid,user_id:uid,name:'Synthetic profile',fh_kind:'self'}]
+    else if (url.pathname==='/rest/v1/fh_resources') {
+      if (method==='POST') { const body=route.request().postDataJSON();const row={...body,id:randomUUID(),created_at:new Date().toISOString()};rows.unshift(row);data=row }
+      else data=rows
+    }
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)})
+  })
+  await page.goto('/knowledge-vault/')
+  await expect(page.getByRole('heading',{name:'Family Hub',exact:true})).toBeVisible()
+  await page.getByLabel('E-Mail',{exact:true}).fill('synthetic@example.invalid')
+  await page.getByLabel('Passwort',{exact:true}).fill('synthetic-password')
+  await page.getByRole('button',{name:'Anmelden',exact:true}).click()
+  await expect(page.getByRole('heading',{name:'Dein Family Hub'})).toBeVisible()
+  await page.locator('main').getByRole('link',{name:/Gesundheit/}).click()
+  await expect(page.getByRole('heading',{name:'Gesundheit',exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'Speichern',exact:true}).click()
+  await expect(page.getByRole('heading',{name:/Kopfschmerzen/})).toBeVisible()
+  expect(rows).toHaveLength(1)
+  expect(rows[0].owner_id).toBe(uid)
+  expect(rows[0].intensity).toBe(5)
+  await page.getByRole('button',{name:'Menü öffnen'}).click()
+  await page.getByRole('link',{name:/Dokumententresor/}).click()
+  await expect(page.getByRole('heading',{name:'Privater Dokumententresor'})).toBeVisible()
+  await expect(page.getByText('Noch keine Dokumente.',{exact:true})).toBeVisible()
+  await page.screenshot({path:'test-results/mobile-documents.png',fullPage:true,animations:'disabled'})
+  await page.getByRole('button',{name:'Menü öffnen'}).click()
+  await page.getByRole('link',{name:'🗄️ Knowledge',exact:true}).click()
+  await expect(page.getByRole('heading',{name:'Übersicht',exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'Menü öffnen'}).click()
+  await page.getByRole('button',{name:'Abmelden',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Anmelden',exact:true})).toBeVisible()
+})

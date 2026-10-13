@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { getInitialTheme, setTheme } from '../lib/theme'
 import PersonSwitcher from './PersonSwitcher'
+import { supabase } from '../lib/supabase'
 
 const navItems = [
   { to: '/', label: 'Übersicht', icon: '🏠', exact: true },
+  { to: '/knowledge', label: 'Knowledge', icon: '🗄️' },
+  { to: '/health', label: 'Gesundheit', icon: '💚' },
+  { to: '/documents', label: 'Dokumententresor', icon: '📁' },
+  { to: '/family', label: 'Familie & Freigaben', icon: '👪' },
   { to: '/videos', label: 'Videos', icon: '🎬' },
   { to: '/links', label: 'Links', icon: '🔗' },
   { to: '/photos', label: 'Fotos', icon: '📷' },
@@ -39,7 +44,7 @@ export default function Layout({ session }) {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <h1 className="text-base font-semibold text-fg truncate tracking-tight">🗄️ KnowledgeVault</h1>
+        <h1 className="text-base font-semibold text-fg truncate tracking-tight">Family Hub</h1>
         <button
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? 'Hellmodus' : 'Dunkelmodus'}
@@ -70,8 +75,8 @@ export default function Layout({ session }) {
       >
         <div className="p-4 border-b border-line flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-fg tracking-tight">🗄️ KnowledgeVault</h1>
-            <p className="text-xs text-muted mt-1 truncate">Familien-Archiv</p>
+            <h1 className="text-lg font-semibold text-fg tracking-tight">Family Hub</h1>
+            <p className="text-xs text-muted mt-1 truncate">{session.user.email}</p>
           </div>
           <button
             onClick={closeDrawer}
@@ -108,6 +113,7 @@ export default function Layout({ session }) {
           ))}
         </nav>
         <div className="p-3 border-t border-line">
+          <button className="w-full text-sm text-muted py-3" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem('kv.activePersonId'); window.location.reload() }}>Abmelden</button>
           <button
             onClick={toggleTheme}
             className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:bg-elevated hover:text-fg transition-colors"
