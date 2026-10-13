@@ -12,7 +12,7 @@ export default function PhotosPage() {
   const [error, setError] = useState('')
   const fileRef = useRef()
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); const refresh=setInterval(load,240000); return () => clearInterval(refresh) }, [])
 
   async function load() {
     try {
@@ -70,8 +70,8 @@ export default function PhotosPage() {
           {filteredPhotos.length === 0 && <p className="text-muted col-span-full">Keine Fotos in dieser Auswahl.</p>}
           {filteredPhotos.map(photo => (
             <div key={photo.id} className="bg-surface border border-line rounded-xl overflow-hidden group">
-              {photo.public_url ? (
-                <img src={photo.public_url} alt={photo.filename} className="w-full h-40 object-cover" />
+              {photo.signed_url ? (
+                <img src={photo.signed_url} alt={photo.filename} className="w-full h-40 object-cover" />
               ) : (
                 <div className="w-full h-40 bg-elevated flex items-center justify-center text-4xl">📷</div>
               )}

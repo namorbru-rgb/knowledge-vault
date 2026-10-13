@@ -47,3 +47,10 @@ body {
   outline-offset: 2px;
   border-radius: 6px;
 }
+@layer components {
+  .hub-page { @apply p-4 sm:p-6 md:p-8 max-w-5xl mx-auto text-fg; }
+  .hub-card { @apply rounded-2xl bg-surface border border-line p-5 text-fg; }
+  .hub-input { @apply block w-full mt-1 px-3 py-2 rounded-lg border border-line bg-app text-fg; }
+  .hub-label { @apply block text-sm font-medium text-fg; }
+  .hub-button { @apply rounded-lg bg-blue-600 text-white px-4 py-2.5 font-medium disabled:opacity-50; }
+}

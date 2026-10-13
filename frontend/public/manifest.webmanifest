@@ -1,6 +1,6 @@
 {
-  "name": "KnowledgeVault",
-  "short_name": "KnowledgeVault",
+  "name": "Family Hub",
+  "short_name": "Family Hub",
   "description": "Persönliches Wissensarchiv für Videos, Links, Fotos und Notizen",
   "start_url": "/knowledge-vault/",
   "scope": "/knowledge-vault/",

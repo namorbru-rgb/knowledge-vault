@@ -111,16 +111,18 @@ export const api = {
   getPhotos: async () => {
     const { data, error } = await sb.from('kv_photos').select('*').eq('user_id', uid()).order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
-    return (data || []).map(p => ({
-      ...p,
-      public_url: p.storage_path ? sb.storage.from('kv-media').getPublicUrl(p.storage_path).data?.publicUrl : null,
+    return Promise.all((data || []).map(async p => {
+      if (!p.storage_path) return p
+      const { data: url, error } = await sb.storage.from('kv-media').createSignedUrl(p.storage_path, 300)
+      if (error) throw new Error(error.message)
+      return { ...p, signed_url: url.signedUrl }
     }))
   },
   uploadPhoto: async (formData, personId) => {
     const file = formData.get('photo')
     if (!file) throw new Error('Keine Datei')
     const safeName = file.name.replace(/[^\w.\-]+/g, '_')
-    const path = `${uid()}/${Date.now()}_${safeName}`
+    const path = `${uid()}/${crypto.randomUUID()}_${safeName}`
     const { error: upErr } = await sb.storage.from('kv-media').upload(path, file, { contentType: file.type, upsert: false })
     if (upErr) throw new Error(upErr.message)
     const { data, error } = await sb.from('kv_photos').insert({
@@ -130,8 +132,10 @@ export const api = {
       person_id: personId || null,
       created_at: new Date().toISOString(),
     }).select().single()
-    if (error) throw new Error(error.message)
-    return { ...data, public_url: sb.storage.from('kv-media').getPublicUrl(path).data?.publicUrl }
+    if (error) { await sb.storage.from('kv-media').remove([path]); throw new Error(error.message) }
+    const { data: url, error: signError } = await sb.storage.from('kv-media').createSignedUrl(path, 300)
+    if (signError) throw new Error(signError.message)
+    return { ...data, signed_url: url.signedUrl }
   },
   deletePhoto: async (id) => {
     const { data: p } = await sb.from('kv_photos').select('storage_path').eq('id', id).eq('user_id', uid()).single()
