@@ -4,6 +4,16 @@
 // die Version hoch.
 export const changelog = [
   {
+    date: '2026-10-14',
+    title: 'Family Hub: kompakte Kacheln und klare Navigation',
+    changes: [
+      'Vier farbige Hauptbereiche im Kachelraster, auch auf dem Handy',
+      'Knowledge-Direktzugriffe für Videos, Links, Fotos und Notizen',
+      'Gruppiertes Menü und feste Navigation am unteren Bildschirmrand',
+      'Geplante Bereiche platzsparend aufklappbar, Versionsverlauf auf der Startseite',
+    ],
+  },
+  {
     date: '2026-10-13',
     title: 'Family Hub: Hintergrund-Erinnerungen und persönliche Passwort-Einrichtung',
     changes: [
