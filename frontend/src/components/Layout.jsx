@@ -4,20 +4,22 @@ import { getInitialTheme, setTheme } from '../lib/theme'
 import PersonSwitcher from './PersonSwitcher'
 import { supabase } from '../lib/supabase'
 import { disablePush } from '../lib/push'
+import HubIcon from './HubIcon'
 
 const navItems = [
-  { to: '/', label: 'Übersicht', icon: '🏠', exact: true },
-  { to: '/knowledge', label: 'Knowledge', icon: '🗄️' },
-  { to: '/health', label: 'Gesundheit', icon: '💚' },
-  { to: '/documents', label: 'Dokumententresor', icon: '📁' },
-  { to: '/family', label: 'Familie & Freigaben', icon: '👪' },
-  { to: '/videos', label: 'Videos', icon: '🎬' },
-  { to: '/links', label: 'Links', icon: '🔗' },
-  { to: '/photos', label: 'Fotos', icon: '📷' },
-  { to: '/notes', label: 'Notizen', icon: '📝' },
-  { to: '/search', label: 'Suche', icon: '🔍' },
-  { to: '/voice', label: 'Sprach-Chat', icon: '🎙️' },
-  { to: '/settings', label: 'Einstellungen', icon: '⚙️' },
+  { to: '/', label: 'Übersicht', icon: 'home', exact: true },
+  { to: '/knowledge', label: 'Knowledge', icon: 'knowledge' },
+  { to: '/health', label: 'Gesundheit', icon: 'health' },
+  { to: '/documents', label: 'Dokumententresor', icon: 'documents' },
+  { to: '/family', label: 'Familie & Freigaben', icon: 'family' },
+]
+const knowledgeItems = [
+  { to: '/videos', label: 'Videos', icon: 'videos' },
+  { to: '/links', label: 'Links', icon: 'links' },
+  { to: '/photos', label: 'Fotos', icon: 'photos' },
+  { to: '/notes', label: 'Notizen', icon: 'notes' },
+  { to: '/search', label: 'Suche', icon: 'search' },
+  { to: '/voice', label: 'Sprach-Chat', icon: 'voice' },
 ]
 
 export default function Layout({ session }) {
@@ -52,7 +54,7 @@ export default function Layout({ session }) {
           className="ml-auto p-2 -mr-2 rounded-lg text-muted hover:text-fg hover:bg-elevated"
           title={theme === 'dark' ? 'Hellmodus' : 'Dunkelmodus'}
         >
-          {theme === 'dark' ? '☀️' : '🌙'}
+          <HubIcon name={theme === 'dark' ? 'sun' : 'moon'} />
         </button>
       </header>
 
@@ -66,7 +68,7 @@ export default function Layout({ session }) {
 
       <aside
         className={`
-          fixed md:static inset-y-0 left-0 z-50 w-64 md:w-60
+          fixed md:sticky md:top-0 md:h-[100dvh] inset-y-0 left-0 z-50 w-[min(20rem,88vw)] md:w-64 md:shrink-0
           bg-surface border-r border-line flex flex-col shadow-card md:shadow-none
           transform transition-transform duration-200 ease-out
           ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -91,9 +93,11 @@ export default function Layout({ session }) {
           </button>
         </div>
         <div className="px-3 pt-3">
+          <p className="hub-nav-label mb-2">Aktives Profil</p>
           <PersonSwitcher onSelect={closeDrawer} />
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          <p className="hub-nav-label">Deine Bereiche</p>
           {navItems.map(item => (
             <NavLink
               key={item.to}
@@ -108,10 +112,13 @@ export default function Layout({ session }) {
                 }`
               }
             >
-              <span className="text-base">{item.icon}</span>
+              <HubIcon name={item.icon} className="shrink-0" />
               {item.label}
             </NavLink>
           ))}
+          <p className="hub-nav-label !mt-5">Knowledge · Direktzugriff</p>
+          <div className="grid grid-cols-2 gap-1">{knowledgeItems.map(item => <NavLink key={item.to} to={item.to} onClick={closeDrawer} className={({isActive}) => `hub-nav-shortcut ${isActive ? 'bg-blue-600 text-white' : 'text-muted hover:bg-elevated hover:text-fg'}`}><HubIcon name={item.icon} /><span>{item.label}</span></NavLink>)}</div>
+          <NavLink to="/settings" onClick={closeDrawer} className={({isActive}) => `hub-nav-shortcut !mt-4 ${isActive ? 'bg-blue-600 text-white' : 'text-muted hover:bg-elevated hover:text-fg'}`}><HubIcon name="settings" />Einstellungen</NavLink>
         </nav>
         <div className="p-3 border-t border-line">
           <button className="w-full text-sm text-muted py-3" onClick={async () => { try{await disablePush()}catch{} await supabase.auth.signOut(); localStorage.removeItem('kv.activePersonId'); window.location.reload() }}>Abmelden</button>
@@ -121,16 +128,17 @@ export default function Layout({ session }) {
             title={theme === 'dark' ? 'Zu Hellmodus wechseln' : 'Zu Dunkelmodus wechseln'}
           >
             <span className="flex items-center gap-3">
-              <span className="text-base">{theme === 'dark' ? '☀️' : '🌙'}</span>
+              <HubIcon name={theme === 'dark' ? 'sun' : 'moon'} />
               {theme === 'dark' ? 'Hellmodus' : 'Dunkelmodus'}
             </span>
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-auto pb-[env(safe-area-inset-bottom)]">
+      <main className="flex-1 min-w-0 pb-24 md:pb-0">
         <Outlet />
       </main>
+      <nav aria-label="Hauptnavigation" className="hub-mobile-nav md:hidden">{navItems.slice(0,4).map(item => <NavLink key={item.to} to={item.to} end={item.exact} onClick={closeDrawer} className={({isActive}) => isActive ? 'is-active' : ''}><HubIcon name={item.icon} /><span>{item.to === '/documents' ? 'Dokumente' : item.label}</span></NavLink>)}</nav>
     </div>
   )
 }
