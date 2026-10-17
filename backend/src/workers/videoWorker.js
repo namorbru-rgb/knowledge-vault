@@ -1,162 +1,124 @@
-require('dotenv').config({ path: __dirname + '/../../.env' });
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const { promisify } = require('util');
-const axios = require('axios');
-const supabase = require('../supabase');
-const { getEmbedding } = require('../embeddings');
-const execAsync = promisify(exec);
+// KnowledgeVault transcription worker.
+// Claim -> download -> speech-to-text -> ATOMIC commit of validated segments -> done.
+// A video with no stored transcript is never counted as done.
+require('dotenv').config({path:__dirname+'/../../.env'});
+const fs=require('node:fs');
+const path=require('node:path');
+const os=require('node:os');
+const {spawn}=require('node:child_process');
+const axios=require('axios');
+const db=require('../supabase');
+const {safeVideoUrl,parseWhisper,displayTitle,permanentFailure,ytDlpArgs}=require('./videoWorkerCore');
 
-const WHISPER_PATH = process.env.WHISPER_PATH || 'whisper';
-const YTDLP_PATH = process.env.YTDLP_PATH || 'yt-dlp';
-const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg';
-const FB_COOKIES_FILE = process.env.FB_COOKIES_FILE || '';
-const WORK_DIR = '/tmp/kv-video-work';
-const MAX_RETRIES = 3;
+const YTDLP=process.env.YTDLP_PATH||'yt-dlp';
+const WHISPER=process.env.WHISPER_PATH||'whisper';
+const MODEL=process.env.WHISPER_MODEL||'small';
+const COOKIES=process.env.FB_COOKIES_FILE||'';
+const SLEEP_MS=Number(process.env.VIDEO_WORKER_INTERVAL_MS||30000);
+const BASE=process.env.VIDEO_WORK_DIR||path.join(os.tmpdir(),'kv-video-work');
+let shuttingDown=false;
+process.on('SIGTERM',()=>{shuttingDown=true;});
+process.on('SIGINT',()=>{shuttingDown=true;});
+fs.mkdirSync(BASE,{recursive:true});
 
-if (!fs.existsSync(WORK_DIR)) fs.mkdirSync(WORK_DIR, { recursive: true });
-
-// Facebook-Share-Links (facebook.com/share/v/..., /share/r/...) sind nur
-// Redirects. yt-dlp scheitert daran oft — vorher den finalen URL auflösen.
-async function resolveShareUrl(url) {
-  if (!/^https?:\/\/(?:www\.|m\.)?facebook\.com\/share\//i.test(url)) return url;
-  try {
-    const res = await axios.get(url, {
-      maxRedirects: 10,
-      timeout: 15000,
-      validateStatus: () => true,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-      },
+function delay(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+function execute(bin,args,{timeout=120000,stdoutMax=6000000}={}){
+  return new Promise((resolve,reject)=>{
+    const child=spawn(bin,args,{stdio:['ignore','pipe','pipe'],shell:false});
+    const stdout=[],stderr=[];
+    let outSize=0,errSize=0,finished=false;
+    const timeoutId=setTimeout(()=>{child.kill('SIGKILL');},timeout);
+    child.stdout.on('data',chunk=>{outSize+=chunk.length;if(outSize<=stdoutMax)stdout.push(chunk);else child.kill('SIGKILL');});
+    child.stderr.on('data',chunk=>{errSize+=chunk.length;if(errSize<=40000)stderr.push(chunk);});
+    child.on('error',err=>end(err));
+    child.on('close',(code,signal)=>{
+      if(code!==0)return end(new Error(bin+' failed ('+(signal||code)+'): '+Buffer.concat(stderr).toString('utf8').slice(-1300)));
+      end(null,Buffer.concat(stdout).toString('utf8'));
     });
-    const finalUrl = res.request?.res?.responseUrl || res.config?.url || url;
-    if (finalUrl && finalUrl !== url) {
-      console.log('Resolved share URL:', url, '->', finalUrl);
+    function end(err,value){if(finished)return;finished=true;clearTimeout(timeoutId);if(err)reject(err);else resolve(value);}
+  });
+}
+function cookiesFile(){
+  if(!COOKIES)return '';
+  if(!fs.existsSync(COOKIES))throw new Error('Facebook cookies file configured but missing');
+  return COOKIES;
+}
+async function resolveShare(raw){
+  const u=new URL(raw);
+  if(!/(^|\.)facebook\.com$/i.test(u.hostname)||!u.pathname.startsWith('/share/'))return raw;
+  try{
+    const response=await axios.get(raw,{timeout:15000,maxRedirects:7,maxContentLength:1200000,
+      validateStatus:code=>code>=200&&code<400,
+      headers:{'User-Agent':'Mozilla/5.0'}});
+    const redirected=response.request?.res?.responseUrl||raw;
+    return safeVideoUrl(redirected);
+  }catch{ return raw; }
+}
+async function transcribe(job){
+  const id=job.id,claim=job.claim_token;
+  const temp=fs.mkdtempSync(path.join(BASE,id+'-'));
+  let heartbeat=null;
+  try{
+    heartbeat=setInterval(async()=>{
+      try{
+        const {data,error}=await db.rpc('kv_transcription_heartbeat',{p_id:id,p_claim:claim});
+        if(error||data!==true)console.warn('Claim heartbeat failed for',id);
+      }catch(e){console.warn('Heartbeat unavailable',id);}
+    },60000);
+    let url=safeVideoUrl(job.url);
+    url=await resolveShare(url);
+    let info;
+    const commonCookie=cookiesFile();
+    try{info=JSON.parse(await execute(YTDLP,ytDlpArgs(url,commonCookie,'info'),{timeout:90000}));}
+    catch(e){
+      // Some Facebook redirect pages are valid URLs yet unrecognized by yt-dlp.
+      // Try the original once when a redirect was followed.
+      if(url===job.url)throw e;
+      url=safeVideoUrl(job.url);
+      info=JSON.parse(await execute(YTDLP,ytDlpArgs(url,commonCookie,'info'),{timeout:90000}));
     }
-    return finalUrl || url;
-  } catch (e) {
-    console.warn('Share URL resolve failed:', url, e.message);
-    return url;
+    const audio=path.join(temp,'audio.mp3');
+    await execute(YTDLP,ytDlpArgs(url,commonCookie,'audio',audio),{timeout:600000,stdoutMax:200000});
+    if(!fs.existsSync(audio)||fs.statSync(audio).size<1000)throw Error('Audio missing or empty');
+    await execute(WHISPER,[audio,'--model',MODEL,'--output_format','json','--output_dir',temp,'--verbose','False'],{timeout:3600000,stdoutMax:200000});
+    const jsonPath=path.join(temp,'audio.json');
+    if(!fs.existsSync(jsonPath))throw Error('Whisper transcript JSON missing');
+    const parsed=JSON.parse(fs.readFileSync(jsonPath,'utf8'));
+    const segments=parseWhisper(parsed);
+    const infoData={title:displayTitle(info,url),description:info?.description||'',
+      thumbnail:info?.thumbnail||'',duration:String(Math.round(Number(info?.duration)||0))};
+    const {data:count,error}=await db.rpc('kv_transcription_finalize',{
+      p_id:id,p_claim:claim,p_segments:segments,p_info:infoData
+    });
+    if(error||count!==segments.length)throw Error('Atomic transcript database commit failed: '+(error?.message||'segment count mismatch'));
+    console.log('TRANSCRIBED',id,'segments:',count,'duration:',infoData.duration);
+  }catch(e){
+    const reason=String(e?.message||e).slice(0,400);
+    console.error('TRANSCRIPTION_FAILED',id,reason);
+    const {data:next,error}=await db.rpc('kv_transcription_fail',{
+      p_id:id,p_claim:claim,p_reason:reason,p_permanent:permanentFailure(reason)
+    });
+    if(error)console.error('Could not save failure status',id,error.message);
+    else console.log('Next status:',next,id);
+  }finally{
+    if(heartbeat)clearInterval(heartbeat);
+    fs.rmSync(temp,{recursive:true,force:true});
   }
 }
-
-function cookiesArg() {
-  if (!FB_COOKIES_FILE) return '';
-  if (!fs.existsSync(FB_COOKIES_FILE)) {
-    console.warn('FB_COOKIES_FILE gesetzt, aber Datei fehlt:', FB_COOKIES_FILE);
-    return '';
-  }
-  return `--cookies "${FB_COOKIES_FILE}"`;
-}
-
-async function processVideo(video) {
-  console.log('Processing video:', video.id, video.url);
-  const workDir = path.join(WORK_DIR, video.id);
-  fs.mkdirSync(workDir, { recursive: true });
-
-  try {
-    await supabase.from('kv_videos').update({ transcript_status: 'processing' }).eq('id', video.id);
-
-    const sourceUrl = await resolveShareUrl(video.url);
-    const cookies = cookiesArg();
-
-    // 1. Download video info
-    const { stdout: infoJson } = await execAsync(
-      `${YTDLP_PATH} ${cookies} --dump-json --no-playlist "${sourceUrl}"`,
-      { timeout: 30000 }
-    );
-    const info = JSON.parse(infoJson);
-    const description = info.description || '';
-    // yt-dlp setzt bei Facebook-Videos oft "241K views · 4.8K reactions"
-    // als Title. Falls das so aussieht, lieber erste Zeile der
-    // Description nehmen (= eigentlicher Caption-Text).
-    const rawTitle = (info.title || '').trim();
-    const isStatsTitle = /^\d+([.,]\d+)?\s*[KMB]?\s*(views?|aufrufe)\b/i.test(rawTitle)
-      || /\breactions?\b|\breaktionen\b/i.test(rawTitle);
-    let title = rawTitle || video.url;
-    if (isStatsTitle && description) {
-      const firstLine = description.split(/\r?\n/).map(s => s.trim()).find(Boolean);
-      if (firstLine) title = firstLine.slice(0, 200);
-    }
-    const duration = info.duration || 0;
-    const thumbnail = info.thumbnail || '';
-
-    // 2. Download audio
-    const audioFile = path.join(workDir, 'audio.mp3');
-    await execAsync(
-      `${YTDLP_PATH} ${cookies} -x --audio-format mp3 --audio-quality 0 -o "${audioFile}" "${sourceUrl}"`,
-      { timeout: 600000 }
-    );
-
-    // 3. Transcribe with Whisper
-    await execAsync(
-      `${WHISPER_PATH} "${audioFile}" --model small --output_format json --output_dir "${workDir}"`,
-      { timeout: 1200000 }
-    );
-
-    // 4. Parse transcript
-    const transcriptFile = path.join(workDir, 'audio.json');
-    if (!fs.existsSync(transcriptFile)) throw new Error('Whisper output not found');
-    const transcript = JSON.parse(fs.readFileSync(transcriptFile, 'utf8'));
-
-    // 5. Update video record
-    await supabase.from('kv_videos').update({
-      title,
-      description: description.slice(0, 2000),
-      duration_seconds: Math.round(duration),
-      thumbnail_url: thumbnail,
-      transcript_status: 'done',
-      transcript_error: null
-    }).eq('id', video.id);
-
-    // 6. Store segments with embeddings
-    const segments = transcript.segments || [];
-    for (const seg of segments) {
-      const embedding = await getEmbedding(seg.text);
-      await supabase.from('kv_video_segments').insert({
-        video_id: video.id,
-        user_id: video.user_id,
-        start_time: seg.start,
-        end_time: seg.end,
-        text: seg.text,
-        embedding
-      });
-    }
-
-    console.log('Video processed:', video.id, 'segments:', segments.length);
-  } catch (err) {
-    const newCount = (video.transcript_retry_count || 0) + 1;
-    const giveUp = newCount >= MAX_RETRIES;
-    console.error('Video processing error:', video.id, `(Versuch ${newCount}/${MAX_RETRIES})`, err.message);
-    await supabase.from('kv_videos').update({
-      transcript_status: giveUp ? 'error' : 'pending',
-      transcript_retry_count: newCount,
-      transcript_error: (err.message || 'Unbekannter Fehler').slice(0, 500),
-    }).eq('id', video.id);
-  } finally {
-    fs.rmSync(workDir, { recursive: true, force: true });
-  }
-}
-
-async function runWorker() {
-  // Holt offene Videos: alles 'pending' und alles 'error', das noch
-  // Versuche übrig hat. So werden bestehende Fehler-Einträge nach dem
-  // Hinzufügen des retry_count-Feldes automatisch nachgeholt.
-  const { data: pendingVideos } = await supabase
-    .from('kv_videos')
-    .select('*')
-    .or(`transcript_status.eq.pending,and(transcript_status.eq.error,transcript_retry_count.lt.${MAX_RETRIES})`)
-    .limit(3);
-
-  if (pendingVideos && pendingVideos.length > 0) {
-    for (const video of pendingVideos) {
-      await processVideo(video);
+async function main(){
+  console.log('Knowledge video worker ready (atomic-transcript-v2, model',MODEL,')');
+  while(!shuttingDown){
+    try{
+      const {data,error}=await db.rpc('kv_transcription_claim');
+      if(error)throw Error('Queue claim failed: '+error.message);
+      if(!data){await delay(Math.max(5000,Math.min(120000,SLEEP_MS)));continue;}
+      await transcribe(data);
+    }catch(e){
+      console.error('Worker error:',e?.message||e);
+      await delay(Math.max(30000,SLEEP_MS));
     }
   }
+  console.log('Knowledge worker stopped');
 }
-
-// Run every 30 seconds
-runWorker();
-setInterval(runWorker, 30000);
-console.log('Video worker started');
+if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1});
+module.exports={transcribe,execute,resolveShare};
