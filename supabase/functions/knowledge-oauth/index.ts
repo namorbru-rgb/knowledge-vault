@@ -239,7 +239,7 @@ async function loadClient(clientId: string): Promise<OauthClient | null> {
 
 function validateAuthorizeParams(params: Record<string, string>, client: OauthClient | null): string | null {
   if (!client) return 'Unbekannter client_id.';
-  if (params.resource !== RESOURCE) return 'resource muss Knowledge MCP entsprechen.';
+  if (params.resource && params.resource !== RESOURCE) return 'resource muss Knowledge MCP entsprechen.';
   if (params.response_type !== 'code') return 'Nur response_type=code wird unterstützt.';
   if (!client.redirect_uris.includes(params.redirect_uri ?? '')) return 'redirect_uri ist für diesen Client nicht registriert.';
   if (params.code_challenge_method !== 'S256') return 'PKCE mit S256 ist Pflicht.';
@@ -280,7 +280,7 @@ async function handleAuthorizePost(req: Request): Promise<Response> {
   const member = await hasAppMembership(grant.data.user.id, grant.data.user.email ?? email).catch(() => false);
   if (!member) {
     await gotrueLogout(grant.data.access_token);
-    return loginFormRedirect(params, client!.client_name, 'Dieses Konto hat keinen aktiven KAMA-NET-Zugang (fehlende Team-Mitgliedschaft).');
+    return loginFormRedirect(params, client!.client_name, 'Dieses Konto ist nicht für Family Hub aktiviert.');
   }
 
   await purgeExpiredCodes();
@@ -324,7 +324,7 @@ async function handleToken(req: Request): Promise<Response> {
     const verifier = String(form.get('code_verifier') ?? '');
     const clientId = String(form.get('client_id') ?? '');
     const redirectUri = String(form.get('redirect_uri') ?? '');
-    if (String(form.get('resource') ?? '') !== RESOURCE) return oauthError('invalid_target', 'Falsche MCP-Ressource.');
+    if (form.get('resource') && String(form.get('resource')) !== RESOURCE) return oauthError('invalid_target', 'Falsche MCP-Ressource.');
     if (!code || !verifier) return oauthError('invalid_request', 'code und code_verifier sind Pflicht.');
 
     await purgeExpiredCodes();
