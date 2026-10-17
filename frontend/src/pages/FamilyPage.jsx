@@ -52,8 +52,5 @@ export default function FamilyPage() {
     <details className="hub-card"><summary className="font-semibold cursor-pointer">Aktivitätsprotokoll</summary>
       <div className="mt-3"><h2 className="font-semibold mb-3">Meine Daten</h2>{audit.map(a => <p className="text-xs text-muted py-1" key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.actor_id}</p>)}</div>
     </details>
-    {/* original audit hidden in details below */}
-    <div className="hidden">
-    <section className="hub-card"><h2 className="font-semibold mb-3">Aktivitätsprotokoll meiner Daten</h2>{audit.map(a => <p className="text-xs text-muted py-1" key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.actor_id}</p>)}</section>
   </div>
 }
