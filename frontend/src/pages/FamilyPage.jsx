@@ -16,6 +16,14 @@ export default function FamilyPage() {
     <details className="hub-card"><summary className="font-semibold cursor-pointer">Passwort ändern</summary><div className="mt-3"><PasswordSettings /></div></details>
     <p className="text-muted">Jeder Erwachsene meldet sich selbst an. Knowledge-Personen sind Zuordnungen und keine Benutzerkonten. Kinderprofile verwaltet ein Sorgeberechtigter.</p>
     {error && <p role="alert" className="text-red-500">{error}</p>}
+    <section className="hub-card space-y-2">
+      <h2 className="font-semibold">Familie und Profile</h2>
+      <p className="text-sm text-muted">Familie: {families.map(f=>f.name).join(', ')||'noch nicht eingerichtet'}</p>
+      <p className="text-sm text-muted">Familienkonten: {[...new Set(members.map(m=>m.display_name))].join(', ')||'keine'}</p>
+      <p className="text-sm text-muted">Meine Profile: {persons.map(p=>p.name).join(', ')||'keine'}</p>
+    </section>
+    <details className="space-y-3">
+      <summary className="hub-card cursor-pointer font-semibold">Weitere Profile und Familienkonten verwalten</summary>
     <div className="hub-card"><p>Deine Konto-ID (für eine Einladung):</p><code className="text-sm break-all">{userId}</code></div>
     <form className="hub-card space-y-3" onSubmit={e => run(e,async () => { await family.addPerson(name.trim(),kind); setName('') })}>
       <h2 className="font-semibold">Persönliches Profil oder Kind anlegen</h2>
@@ -40,6 +48,12 @@ export default function FamilyPage() {
       <p className="text-xs text-muted">Die Rolle erlaubt Familienverwaltung. Private Einträge werden dadurch nicht freigegeben.</p>
       {members.map(m => <p key={`${m.family_id}-${m.user_id}`}>{m.display_name} · {m.role === 'admin' ? 'Administration' : 'Mitglied'}</p>)}
     </form>
+    </details>
+    <details className="hub-card"><summary className="font-semibold cursor-pointer">Aktivitätsprotokoll</summary>
+      <div className="mt-3"><h2 className="font-semibold mb-3">Meine Daten</h2>{audit.map(a => <p className="text-xs text-muted py-1" key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.actor_id}</p>)}</div>
+    </details>
+    {/* original audit hidden in details below */}
+    <div className="hidden">
     <section className="hub-card"><h2 className="font-semibold mb-3">Aktivitätsprotokoll meiner Daten</h2>{audit.map(a => <p className="text-xs text-muted py-1" key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.actor_id}</p>)}</section>
   </div>
 }
