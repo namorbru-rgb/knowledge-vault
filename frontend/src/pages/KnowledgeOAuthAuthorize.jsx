@@ -12,16 +12,19 @@ export default function KnowledgeOAuthAuthorize() {
   const fragment=window.location.hash
   const params=new URLSearchParams(fragment.slice(fragment.indexOf('?')+1))
   const data=Object.fromEntries(FIELDS.map(key=>[key,params.get(key)||'']))
-  const allowed=data.resource===RESOURCE&&data.response_type==='code'&&
+  const allowed=(!data.resource||data.resource===RESOURCE)&&data.response_type==='code'&&
     data.code_challenge_method==='S256'&&data.client_id.length>0&&
     data.redirect_uri.startsWith('https://')
   const client=params.get('client_name')||'KI-Assistent'
+  let callbackHost=''
+  try { callbackHost=new URL(data.redirect_uri).hostname } catch {}
   const error=params.get('error')||''
 
   return <main className="min-h-screen bg-app text-fg flex items-center justify-center p-5">
     <section className="hub-card w-full max-w-lg space-y-4">
       <h1 className="text-2xl font-bold">Knowledge für KI freigeben</h1>
       <p className="text-muted">Verbinde dein persönliches Family-Hub-Konto mit <strong>{client}</strong>.</p>
+      {callbackHost&&<p className="text-xs text-muted">Weiterleitung nach Anmeldung an: <strong>{callbackHost}</strong></p>}
       <div className="rounded-lg border border-line p-4 space-y-2 text-sm">
         <p><strong>Was der Assistent lesen darf</strong></p>
         <p>Deine Knowledge-Einträge, gespeicherte Videos und verfügbare Transkripte,
@@ -34,7 +37,7 @@ export default function KnowledgeOAuthAuthorize() {
       </div>
       {!allowed?<p role="alert" className="text-red-600">Ungültige oder unvollständige Anmeldeanfrage. Starte die Verbindung erneut in ChatGPT.</p>:
         <form method="post" action={BROKER} className="space-y-4">
-          {FIELDS.map(key=><input key={key} type="hidden" name={key} value={data[key]} />)}
+          {FIELDS.map(key=><input key={key} type="hidden" name={key} value={key==='resource'?RESOURCE:data[key]} />)}
           <label className="hub-label">Deine persönliche E-Mail
             <input className="hub-input" type="email" name="email" autoComplete="username" required />
           </label>
