@@ -40,7 +40,7 @@ function oauthToken(token:string){
   const raw=b.replace(/-/g,'+').replace(/_/g,'/');
   const jwt=JSON.parse(atob(raw.padEnd(Math.ceil(raw.length/4)*4,'=')));
   const aud=jwt.aud;
-  return jwt.role==='authenticated' && typeof jwt.client_id==='string' && jwt.client_id.length>3
+  return jwt.role==='authenticated'
     && typeof jwt.sub==='string'&&UUID.test(jwt.sub)
     && (aud==='authenticated'||aud===RESOURCE||(Array.isArray(aud)&&aud.includes(RESOURCE)));
  }catch{return false}
@@ -53,6 +53,12 @@ async function authenticate(req:Request){
     global:{headers:{Authorization:'Bearer '+token}}});
  const {data:{user},error}=await db.auth.getUser(token);
  if(error||!user)return null;
+ // Bind ordinary GoTrue JWTs to this particular MCP OAuth grant, not any
+ // other session/app. Broker rotates a SHA-256 record on every refresh.
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+ const hash=Array.from(new Uint8Array(digest)).map(v=>v.toString(16).padStart(2,'0')).join('');
+ const {data:issued,error:issuerError}=await db.rpc('kv_mcp_oauth_access_active',{p_hash:hash});
+ if(issuerError||issued!==true)return null;
  const {data:alive,error:sessionError}=await db.rpc('fh_session_active');
  if(sessionError||alive!==true)return null;
  return {db,id:user.id};
@@ -92,7 +98,7 @@ async function call(db:ReturnType<typeof createClient>,name:string,args:Record<s
 async function handler(req:Request){
  const pathname=new URL(req.url).pathname;
  if(req.method==='GET'&&pathname.endsWith('/.well-known/oauth-protected-resource'))
-  return response({resource:RESOURCE,authorization_servers:[BASE+'/auth/v1'],scopes_supported:['email','profile'],bearer_methods_supported:['header']});
+  return response({resource:RESOURCE,authorization_servers:[BASE+'/functions/v1/knowledge-oauth'],scopes_supported:['email','profile'],bearer_methods_supported:['header']});
  if(req.method==='OPTIONS')return response(null,204,{Allow:'POST, GET, OPTIONS'});
  if(req.method!=='POST')return response({error:'Method not allowed'},405,{Allow:'POST, OPTIONS'});
  const person=await authenticate(req);
