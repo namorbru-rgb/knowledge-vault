@@ -18,6 +18,7 @@ import HealthPage from './pages/HealthPage'
 import DocumentsPage from './pages/DocumentsPage'
 import FamilyPage from './pages/FamilyPage'
 import PasswordSettings from './components/PasswordSettings'
+import KnowledgeOAuthAuthorize from './pages/KnowledgeOAuthAuthorize'
 
 
 export default function App() {
@@ -51,6 +52,8 @@ export default function App() {
     })
     return () => { cancelled = true; subscription.unsubscribe() }
   }, [])
+
+  if (window.location.hash.startsWith('#/oauth-authorize?')) return <KnowledgeOAuthAuthorize />
 
   if (loading) return (
     <div className="min-h-screen bg-app flex items-center justify-center">
