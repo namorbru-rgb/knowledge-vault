@@ -7,6 +7,7 @@ import FamilyAdminPanel from '../components/FamilyAdminPanel'
 export default function FamilyPage() {
   const [persons, setPersons] = useState([])
   const [members, setMembers] = useState([])
+  const [care, setCare] = useState([])
   const [families, setFamilies] = useState([])
   const [userId, setUserId] = useState('')
   const [name, setName] = useState('')
@@ -18,10 +19,11 @@ export default function FamilyPage() {
 
   async function load() {
     try {
-      const [p, m, f, u] = await Promise.all([
+      const [p, m, f, u, c] = await Promise.all([
         family.persons(), family.members(), family.families(), family.userId(),
+        family.carePermissions(),
       ])
-      setPersons(p); setMembers(m); setFamilies(f); setUserId(u)
+      setPersons(p); setMembers(m); setFamilies(f); setUserId(u); setCare(c)
     } catch (err) { setError(err.message) }
   }
   useEffect(() => { load() }, [])
@@ -35,6 +37,8 @@ export default function FamilyPage() {
 
   const ownProfile = persons.find(p => p.fh_kind === 'self')
   const children = persons.filter(p => p.fh_kind === 'child')
+  const otherAdults = members.filter(m=>m.user_id!==userId && members.some(own=>own.user_id===userId&&own.family_id===m.family_id))
+    .filter((m,i,arr)=>arr.findIndex(x=>x.user_id===m.user_id)===i)
 
   return <div className="hub-page space-y-5">
     <header className="space-y-2">
@@ -91,6 +95,25 @@ export default function FamilyPage() {
         <h3 className="font-medium">Kinderprofile</h3>
         {children.map(c => <p key={c.id} className="rounded-lg bg-elevated px-3 py-2">{c.name}</p>)}
       </div>}
+      {!!persons.length && !!otherAdults.length && <details className="border border-line rounded-xl p-3">
+        <summary className="cursor-pointer font-medium">Wer darf für uns Beschwerden erfassen?</summary>
+        <div className="space-y-3 mt-3">
+          <p className="text-sm text-muted">Hier erlaubst du anderen Familienmitgliedern, neue Gesundheitseinträge für dein Profil oder die Kinder unter deiner Verantwortung zu erfassen. Bestehende private Akten bleiben geschützt.</p>
+          {persons.map(p=><div key={p.id} className="space-y-2">
+            <h3 className="font-semibold text-sm">{p.name}</h3>
+            {otherAdults.map(m=>{
+              const active=care.some(c=>c.person_id===p.id&&c.caregiver_id===m.user_id)
+              return <div key={m.user_id} className="flex items-center justify-between gap-2 border border-line rounded-lg px-3 py-2">
+                <span className="text-sm">{m.display_name}</span>
+                <button type="button" disabled={busy} className={active?'hub-secondary-button':'hub-button'}
+                  onClick={()=>run({preventDefault(){}},()=>active?family.revokeCare(p.id,m.user_id):family.grantCare(p.id,m.user_id))}>
+                  {active?'Freigabe beenden':'Erfassen erlauben'}
+                </button>
+              </div>
+            })}
+          </div>)}
+        </div>
+      </details>}
       <details className="border border-line rounded-xl p-3">
         <summary className="cursor-pointer font-medium">Kind hinzufügen</summary>
         <form className="space-y-2 mt-3" onSubmit={event => run(event, async () => {

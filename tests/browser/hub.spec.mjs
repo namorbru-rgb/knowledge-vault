@@ -13,6 +13,18 @@ test('mobile personal login, module navigation and recurring health entry withou
     if (url.pathname==='/auth/v1/token') data={access_token:jwt,token_type:'bearer',expires_in:3600,refresh_token:'synthetic-refresh',user}
     else if (url.pathname==='/auth/v1/user') data=user
     else if (url.pathname==='/rest/v1/kv_persons') data=[{id:pid,user_id:uid,name:'Synthetic profile',fh_kind:'self'}]
+    else if (url.pathname==='/rest/v1/rpc/fh_selectable_profiles')
+      data=[{id:pid,profile_owner_id:uid,name:'Synthetic profile',fh_kind:'self'}]
+    else if (url.pathname==='/rest/v1/rpc/fh_create_for_person') {
+      const body=route.request().postDataJSON()
+      const row={
+        id:randomUUID(),person_id:body.p_person,owner_id:uid,kind:body.p_kind,
+        title:body.p_title,occurred_at:body.p_at,intensity:body.p_intensity,
+        details:body.p_details||{},created_at:new Date().toISOString(),
+      }
+      rows.unshift(row)
+      data=row.id
+    }
     else if (url.pathname==='/rest/v1/fh_resources') {
       if (method==='POST') { const body=route.request().postDataJSON();const row={...body,id:randomUUID(),created_at:new Date().toISOString()};rows.unshift(row);data=row }
       else data=rows
@@ -44,19 +56,19 @@ test('mobile personal login, module navigation and recurring health entry withou
   await page.setViewportSize({width:390,height:844})
   await page.locator('main').getByRole('link',{name:/Gesundheit/}).click()
   await expect(page.getByRole('heading',{name:'Gesundheit',exact:true})).toBeVisible()
-  await page.getByRole('button',{name:'Speichern',exact:true}).click()
+  await page.getByRole('button',{name:'Beschwerde speichern',exact:true}).click()
   await expect(page.getByRole('heading',{name:/Kopfschmerzen/})).toBeVisible()
   expect(rows).toHaveLength(1)
   expect(rows[0].owner_id).toBe(uid)
   expect(rows[0].intensity).toBe(5)
   await page.getByRole('button',{name:'Menü öffnen'}).click()
-  await page.getByRole('link',{name:/Dokumententresor/}).click()
+  await page.locator('aside').getByRole('link',{name:'Dokumente',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Privater Dokumententresor'})).toBeVisible()
   await expect(page.getByText('Noch keine Dokumente.',{exact:true})).toBeVisible()
   await page.screenshot({path:'test-results/mobile-documents.png',fullPage:true,animations:'disabled'})
   await page.getByRole('button',{name:'Menü öffnen'}).click()
   await page.locator('aside').getByRole('link',{name:'Knowledge',exact:true}).click()
-  await expect(page.getByRole('heading',{name:'Übersicht',exact:true})).toBeVisible()
+  await expect(page.getByRole('heading',{name:'Knowledge',exact:true})).toBeVisible()
   await page.getByRole('button',{name:'Menü öffnen'}).click()
   await page.getByRole('button',{name:'Abmelden',exact:true}).click()
   await expect(page.getByRole('button',{name:'Anmelden',exact:true})).toBeVisible()

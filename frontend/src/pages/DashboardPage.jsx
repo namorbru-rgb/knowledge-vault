@@ -1,67 +1,142 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import ChangelogModal from '../components/ChangelogModal'
+import { family } from '../lib/family'
+import HubIcon from '../components/HubIcon'
 
-const cards = [
-  { key: 'videos', label: 'Videos', icon: '🎬', to: '/videos', color: 'from-purple-600 to-purple-800' },
-  { key: 'links', label: 'Links', icon: '🔗', to: '/links', color: 'from-blue-600 to-blue-800' },
-  { key: 'photos', label: 'Fotos', icon: '📷', to: '/photos', color: 'from-green-600 to-green-800' },
-  { key: 'notes', label: 'Notizen', icon: '📝', to: '/notes', color: 'from-orange-600 to-orange-800' },
+const sections=[
+  {label:'Videos',to:'/videos',description:'Gespeicherte und transkribierte Videos',icon:'videos'},
+  {label:'Links',to:'/links',description:'Interessante Webseiten',icon:'links'},
+  {label:'Fotos',to:'/photos',description:'Fotos und Beschreibungen',icon:'photos'},
+  {label:'Notizen',to:'/notes',description:'Gedanken und Erinnerungen',icon:'notes'},
 ]
-
-const addLabels = {
-  videos: 'Video',
-  links: 'Link',
-  photos: 'Foto',
-  notes: 'Notiz',
+const types={note:'Notiz',video:'Video',link:'Link',photo:'Foto'}
+function safeUrl(raw){
+  try{const u=new URL(raw);return ['http:','https:'].includes(u.protocol)?u.href:null}
+  catch{return null}
 }
-
-export default function DashboardPage() {
-  const [stats, setStats] = useState({ videos: 0, links: 0, photos: 0, notes: 0 })
-  const [loading, setLoading] = useState(true)
-  const [showChangelog, setShowChangelog] = useState(false)
-
-  useEffect(() => {
-    api.getStats().then(setStats).catch(console.error).finally(() => setLoading(false))
-  }, [])
-
-  return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <h2 className="text-2xl font-bold text-fg">Übersicht</h2>
-        <button onClick={() => setShowChangelog(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-elevated border border-line rounded-lg text-xs text-fg hover:text-fg transition-colors flex-shrink-0"
-          title="Was hat sich geändert?">
-          <span>🕘</span><span className="hidden sm:inline">Versionsverlauf</span>
-        </button>
+export default function DashboardPage(){
+  const [stats,setStats]=useState({})
+  const [feed,setFeed]=useState([])
+  const [members,setMembers]=useState([])
+  const [shares,setShares]=useState([])
+  const [userId,setUserId]=useState('')
+  const [loading,setLoading]=useState(true)
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const [filter,setFilter]=useState('all')
+  const [limit,setLimit]=useState(20)
+  const [hasMore,setHasMore]=useState(false)
+  const [loadingMore,setLoadingMore]=useState(false)
+  const [showShare,setShowShare]=useState(false)
+  const [expanded,setExpanded]=useState({})
+  async function load(){
+    const results=await Promise.allSettled([
+      api.getStats(),family.knowledgeFeed(60,0),family.members(),
+      family.knowledgeShares(),family.userId(),
+    ])
+    const val=i=>results[i].status==='fulfilled'?results[i].value:null
+    if(results[1].status==='rejected')setError('Das gemeinsame Wissen konnte nicht geladen werden.')
+    setStats(val(0)||{});setFeed(val(1)||[]);setHasMore((val(1)||[]).length===60);setMembers(val(2)||[])
+    setShares(val(3)||[]);setUserId(val(4)||'')
+    setLoading(false)
+  }
+  useEffect(()=>{load().catch(err=>{setError(err.message);setLoading(false)})},[])
+  const recipients=members.filter(m=>m.user_id!==userId && members.some(my=>my.user_id===userId&&my.family_id===m.family_id))
+    .filter((m,i,all)=>all.findIndex(x=>x.user_id===m.user_id)===i)
+  const available=feed.filter(row=>filter==='all'||(filter==='mine'?row.mine:row.record_owner===filter))
+  const filtered=available.slice(0,limit)
+  async function more(){
+    if(available.length>limit){setLimit(n=>n+20);return}
+    if(!hasMore||loadingMore)return
+    setLoadingMore(true)
+    try{
+      const older=await family.knowledgeFeed(60,feed.length)
+      setFeed(prev=>[...prev,...older])
+      setHasMore(older.length===60)
+      setLimit(n=>n+20)
+    }catch(err){setError(err.message||'Weitere Einträge konnten nicht geladen werden.')}
+    finally{setLoadingMore(false)}
+  }
+  async function toggle(recipient){
+    setBusy(true);setError('')
+    try{
+      if(shares.some(s=>s.owner_id===userId&&s.recipient_id===recipient))await family.unshareKnowledge(recipient)
+      else await family.shareKnowledge(recipient)
+      await load()
+    }catch(err){setError(err.message)}
+    finally{setBusy(false)}
+  }
+  return <div className="hub-page space-y-5">
+    <header>
+      <h1 className="text-2xl font-bold">Knowledge</h1>
+      <p className="text-muted mt-1">Eure Erinnerungen, Videos, Links und Notizen an einem Ort.</p>
+    </header>
+    <section className="hub-card space-y-3">
+      <h2 className="font-semibold text-lg">Gemeinsames Familienwissen</h2>
+      <p className="text-sm text-muted">Hier siehst du deine eigenen Einträge und alle Knowledge-Einträge, die Familienmitglieder mit dir teilen.</p>
+      {error&&<p className="text-sm text-red-600" role="alert">{error}</p>}
+      <div className="hub-person-picks">
+        <button type="button" onClick={()=>{setFilter('all');setLimit(20)}} aria-pressed={filter==='all'}
+          className={`hub-person-pill ${filter==='all'?'is-selected':''}`}>Alle freigegebenen</button>
+        <button type="button" onClick={()=>{setFilter('mine');setLimit(20)}} aria-pressed={filter==='mine'}
+          className={`hub-person-pill ${filter==='mine'?'is-selected':''}`}>Nur meine</button>
+        {recipients.map(m=><button type="button" key={m.user_id} onClick={()=>{setFilter(m.user_id);setLimit(20)}}
+          aria-pressed={filter===m.user_id} className={`hub-person-pill ${filter===m.user_id?'is-selected':''}`}>{m.display_name}</button>)}
       </div>
-      <p className="text-muted mb-8">Dein Wissen auf einen Blick</p>
-
-      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {cards.map(card => (
-          <Link key={card.key} to={card.to}
-            className={`bg-gradient-to-br ${card.color} rounded-xl p-6 hover:scale-105 transition-transform`}>
-            <div className="text-3xl mb-2">{card.icon}</div>
-            <div className="text-3xl font-bold text-white">{loading ? '...' : stats[card.key]}</div>
-            <div className="text-sm text-white/80 mt-1">{card.label}</div>
-          </Link>
-        ))}
+      {loading?<p className="text-muted">Lade Einträge…</p>:filtered.length ? <div className="space-y-2">
+        {filtered.map(row=>{
+          const url=safeUrl(row.link_url)
+          const showDetails=expanded[row.record_id]
+          return <article key={row.record_type+row.record_id} className="hub-knowledge-entry">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted">
+              <span>{types[row.record_type]||'Eintrag'} · {row.mine?'Von mir':`Von ${row.owner_name}`}</span>
+              <span>{new Date(row.created_at).toLocaleDateString('de-CH')}</span>
+            </div>
+            <h3 className="font-semibold mt-1 break-words">{row.title||'(Ohne Titel)'}</h3>
+            {row.summary&&<p className="text-sm text-muted mt-1 whitespace-pre-wrap break-words">
+              {showDetails?row.summary:row.summary.slice(0,180)}{!showDetails&&row.summary.length>180?'…':''}
+            </p>}
+            <div className="flex gap-3 mt-2 items-center text-sm">
+              {url&&<a className="text-blue-600 font-semibold" href={url} target="_blank" rel="noopener noreferrer">Quelle öffnen</a>}
+              {row.summary&&row.summary.length>180&&<button className="text-blue-600" type="button"
+                onClick={()=>setExpanded(old=>({...old,[row.record_id]:!old[row.record_id]}))}>{showDetails?'Weniger':'Mehr lesen'}</button>}
+              {row.record_type==='photo'&&<span className="text-xs text-muted">Foto-Datei bleibt privat</span>}
+            </div>
+          </article>
+        })}
+        {(available.length>limit||hasMore)&&<button className="hub-secondary-button w-full" type="button"
+          onClick={more} disabled={loadingMore}>{loadingMore?'Lade…':'Weitere Einträge anzeigen'}</button>}
+      </div> : <div className="bg-elevated rounded-xl p-4">
+        <p className="font-semibold">{hasMore?'In den neuesten Einträgen ist hier noch nichts.':'Hier ist noch nichts freigegeben.'}</p>
+        <p className="text-sm text-muted mt-1">Katarina kann ihre Knowledge-Einträge mit dir teilen. Die Freigabe nimmt sie einmal in ihrem eigenen Konto vor.</p>
+        {hasMore&&<button className="hub-secondary-button mt-3" type="button" onClick={more} disabled={loadingMore}>Ältere Einträge laden</button>}
+      </div>}
+    </section>
+    <details className="hub-more" open={showShare} onToggle={e=>setShowShare(e.currentTarget.open)}>
+      <summary>Meine Knowledge-Einträge mit der Familie teilen</summary>
+      <div className="space-y-3 mt-3">
+        <p className="text-sm text-muted">Du entscheidest, welche erwachsenen Familienmitglieder deine Notizen, Links, Video-Titel und Foto-Beschreibungen lesen können. Daten aus dem Gesundheitsmodul und private Bilddateien werden dadurch nicht freigegeben. Persönliche Informationen in Knowledge-Notizen gehören hingegen zu den freigegebenen Inhalten.</p>
+        {recipients.map(m=>{
+          const shared=shares.some(s=>s.owner_id===userId&&s.recipient_id===m.user_id)
+          return <div key={m.user_id} className="flex items-center justify-between gap-3 border border-line rounded-xl p-3">
+            <span className="font-medium">{m.display_name}</span>
+            <button type="button" disabled={busy} onClick={()=>toggle(m.user_id)} className={shared?'hub-secondary-button':'hub-button'}>
+              {shared?'Freigabe beenden':'Wissen teilen'}
+            </button>
+          </div>
+        })}
+        {!recipients.length&&<p className="text-sm text-muted">Noch kein weiteres Erwachsenen-Konto in deiner Familie vorhanden.</p>}
       </div>
-
-      <div className="bg-surface rounded-xl p-6 border border-line">
-        <h3 className="font-semibold text-fg mb-4">Schnellzugriff</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {cards.map(card => (
-            <Link key={card.key} to={card.to}
-              className="flex items-center gap-2 px-4 py-3 bg-elevated hover:bg-hover rounded-lg text-sm text-fg hover:text-fg transition-colors">
-              <span>{card.icon}</span> {addLabels[card.key]} hinzufügen
-            </Link>
-          ))}
-        </div>
+    </details>
+    <section>
+      <h2 className="hub-section-title">Wissen hinzufügen oder verwalten</h2>
+      <div className="hub-quick-actions">
+        {sections.map(section=><Link key={section.to} to={section.to} className="hub-quick-action">
+          <HubIcon name={section.icon}/>
+          <span><strong>{section.label}</strong><small>{section.description}</small></span>
+        </Link>)}
       </div>
-    </div>
-  )
+    </section>
+  </div>
 }

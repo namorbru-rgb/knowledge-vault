@@ -1,86 +1,297 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { family, kinds, symptomCatalog, localDay, localDateTime } from '../lib/family'
 import ResourceSharing from '../components/ResourceSharing'
 import PushSettings from '../components/PushSettings'
 
+const quickActions = [
+  { id:'symptom', title:'Beschwerde erfassen', icon:'♡', subtitle:'Was tut weh?' },
+  { id:'doses', title:'Einnahmen abhaken', icon:'✓', subtitle:'Heute erledigt?' },
+  { id:'medication', title:'Präparat einrichten', icon:'+', subtitle:'Nur einmal anlegen' },
+  { id:'nutrition', title:'Ernährung', icon:'◌', subtitle:'Mahlzeit festhalten' },
+]
+const advancedKinds = ['visit','case','examination','hospital','prescription','reminder']
+const mealSuggestions = ['Frühstück','Mittagessen','Abendessen','Zwischenmahlzeit','Wasser']
+const asDate = value => { try { return new Date(value).toLocaleString('de-CH',{dateStyle:'short',timeStyle:'short'}) } catch { return value } }
+
 export default function HealthPage() {
-  const [rows,setRows] = useState([]), [persons,setPersons] = useState([]), [members,setMembers] = useState([]), [grants,setGrants] = useState([]), [doses,setDoses] = useState([])
-  const [userId,setUserId] = useState(''), [error,setError] = useState(''), [busy,setBusy] = useState(false), [personId,setPersonId] = useState(''), [filter,setFilter] = useState('')
-  const [kind,setKind] = useState('symptom'), [title,setTitle] = useState(symptomCatalog[0]), [notes,setNotes] = useState(''), [intensity,setIntensity] = useState(5), [at,setAt] = useState(localDateTime())
-  const [dose,setDose] = useState(''), [slots,setSlots] = useState('08:00'), [favorite,setFavorite] = useState(false), [caseId,setCaseId] = useState(''), [until,setUntil] = useState('')
-  const [dictating,setDictating] = useState(false), recognition = useRef(null)
+  const [searchParams,setSearchParams] = useSearchParams()
+  const initialMode = searchParams.get('action')
+  const [mode,setMode] = useState(['symptom','doses','medication','nutrition','advanced'].includes(initialMode) ? initialMode : 'symptom')
+  const [advancedKind,setAdvancedKind] = useState('visit')
+  const [rows,setRows] = useState([])
+  const [persons,setPersons] = useState([])
+  const [members,setMembers] = useState([])
+  const [grants,setGrants] = useState([])
+  const [doses,setDoses] = useState([])
+  const [userId,setUserId] = useState('')
+  const [personId,setPersonId] = useState('')
+  const [busy,setBusy] = useState(false)
+  const [loading,setLoading] = useState(true)
+  const [error,setError] = useState('')
+  const [success,setSuccess] = useState('')
+  const [title,setTitle] = useState(symptomCatalog[0])
+  const [notes,setNotes] = useState('')
+  const [intensity,setIntensity] = useState(5)
+  const [at,setAt] = useState(localDateTime())
+  const [dose,setDose] = useState('')
+  const [slot1,setSlot1] = useState('08:00')
+  const [slot2,setSlot2] = useState('')
+  const [category,setCategory] = useState('Vitamin')
+  const [favorite,setFavorite] = useState(false)
+  const [dictating,setDictating] = useState(false)
+  const [filterHistory,setFilterHistory] = useState(false)
+  const speech = useRef(null)
+
   async function load() {
-    const [r,p,m,g,d,u] = await Promise.all([family.resources(),family.persons(),family.members(),family.grants(),family.doses(),family.userId()])
-    setRows(r.filter(r => r.kind!=='document')); setPersons(p); setMembers(m); setGrants(g); setDoses(d); setUserId(u)
-    setPersonId(old => old || p.find(x => x.fh_kind==='self')?.id || p[0]?.id || '')
+    const [r,p,m,g,d,u] = await Promise.all([
+      family.resources(),family.selectableProfiles(),family.members(),
+      family.grants(),family.doses(),family.userId(),
+    ])
+    setRows(r.filter(row=>row.kind!=='document'))
+    setPersons(p);setMembers(m);setGrants(g);setDoses(d);setUserId(u)
+    setPersonId(current => p.some(person=>person.id===current) ? current :
+      p.find(person=>person.profile_owner_id===u && person.fh_kind==='self')?.id || p[0]?.id || '')
   }
-  useEffect(() => { load().catch(e => setError(e.message)); return () => recognition.current?.abort() }, [])
-  async function run(action) { setBusy(true); setError(''); try { await action(); await load() } catch(e) { setError(e.message) } finally { setBusy(false) } }
-  async function save(e) {
-    e.preventDefault()
-    await run(async () => {
-      const schedule = slots.split(',').map(s => s.trim()).filter(Boolean)
-      if (kind==='medication' && (!dose.trim() || !schedule.length || schedule.some(s => !/^([01]\d|2[0-3]):[0-5]\d$/.test(s)))) throw new Error('Dosierung und Uhrzeiten im Format HH:MM angeben.')
-      await family.create({ person_id: personId, kind, title: title.trim(), occurred_at: new Date(at).toISOString(), intensity: kind==='symptom' ? Number(intensity) : null,
-        details: { notes, ...(caseId ? { case_id: caseId } : {}), ...(kind==='medication' ? { dosage: dose, slots: [...new Set(schedule)], category: 'medication' } : {}), ...(kind==='nutrition' ? { favorite } : {}), ...(until ? { end_at: new Date(until).toISOString() } : {}) } })
-      setNotes(''); setAt(localDateTime())
-    })
+  useEffect(()=>{
+    let mounted=true
+    load().catch(err=>{if(mounted)setError(err.message)}).finally(()=>{if(mounted)setLoading(false)})
+    return ()=>{mounted=false;speech.current?.abort()}
+  },[])
+  useEffect(()=>{
+    const action=searchParams.get('action')
+    if(['symptom','doses','medication','nutrition','advanced'].includes(action))setMode(action)
+  },[searchParams])
+
+  function chooseMode(next) {
+    setMode(next);setSuccess('');setError('')
+    if(next==='symptom')setTitle(symptomCatalog[0])
+    else if(next==='nutrition')setTitle('')
+    else if(next==='medication')setTitle('')
+    setSearchParams(next==='symptom'?{}:{action:next})
   }
-  function dictate() {
-    if (dictating) { recognition.current?.stop(); return }
-    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!Ctor) { setError('Diktat wird von diesem Browser nicht unterstützt.'); return }
-    const rec = new Ctor(); recognition.current=rec; rec.lang='de-CH'; rec.continuous=false
-    rec.onresult=e => setNotes(n => `${n} ${e.results[0][0].transcript}`.trim())
-    rec.onend=() => setDictating(false); rec.onerror=() => { setDictating(false); setError('Diktat konnte nicht gestartet werden.') }
-    try { rec.start(); setDictating(true) } catch { setError('Mikrofon nicht verfügbar.') }
+  async function run(work) {
+    setBusy(true);setError('');setSuccess('')
+    try {await work();await load()}
+    catch(err){setError(err.message || 'Speichern fehlgeschlagen.')}
+    finally {setBusy(false)}
   }
-  const today = localDay(), visible = rows.filter(r => !filter || r.person_id===filter)
-  const canEdit = row => row.owner_id===userId || grants.some(g => g.resource_id===row.id && g.recipient_id===userId && g.permission==='edit')
+  const selected=persons.find(p=>p.id===personId)
+  const mine=selected?.profile_owner_id===userId
+  const today=localDay()
+  const visible=rows.filter(r=>r.person_id===personId)
+  const canEdit=r=>r.owner_id===userId||grants.some(g=>g.resource_id===r.id&&g.recipient_id===userId&&g.permission==='edit')
+  const scheduled=visible.filter(r=>r.kind==='medication'&&canEdit(r))
+  const intakeEvents=scheduled.flatMap(r=>(r.details?.slots||[]).map(slot=>({
+    row:r,slot,taken:doses.some(d=>d.resource_id===r.id&&d.day===today&&d.slot===slot),
+  })))
+  const checked=intakeEvents.filter(e=>e.taken).length
+  const knownSymptomNames=[
+    ...new Set([...symptomCatalog.filter(s=>s!=='Andere Beschwerde'),
+      ...visible.filter(r=>r.kind==='symptom').map(r=>r.title)]),
+  ].slice(0,14)
+  const favoriteFoods=[
+    ...new Set(visible.filter(r=>r.kind==='nutrition'&&r.details?.favorite).map(r=>r.title)),
+  ].slice(0,6)
+
+  async function save(event) {
+    event.preventDefault()
+    if(!selected)return setError('Bitte zuerst ein Familienmitglied auswählen.')
+    const kind=mode==='advanced'?advancedKind:mode
+    const label=String(title||'').trim()
+    if(!label)return setError('Bitte eine Beschwerde oder einen Namen auswählen.')
+    let details={notes:notes.trim()}
+    if(kind==='medication'){
+      const slots=[slot1,slot2].filter(Boolean)
+      if(!dose.trim()||!slots.length)return setError('Dosierung und Einnahmezeit fehlen.')
+      details={...details,dosage:dose.trim(),slots:[...new Set(slots)],category}
+    }
+    if(kind==='nutrition')details={...details,favorite}
+    setBusy(true);setError('');setSuccess('')
+    try {
+      await family.createForPerson({
+        person_id:personId,kind,title:label,
+        occurred_at:new Date(at).toISOString(),
+        intensity:kind==='symptom'?Number(intensity):null,details,
+      })
+      await load()
+      setSuccess(`${label} für ${selected.name} gespeichert.`)
+      setNotes('');setAt(localDateTime())
+      if(kind==='nutrition')setTitle('')
+      if(kind==='medication'){setTitle('');setDose('')}
+    }catch(err){setError(err.message||'Speichern fehlgeschlagen.')}
+    finally{setBusy(false)}
+  }
+  function dictate(){
+    if(dictating){speech.current?.stop();return}
+    const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition
+    if(!Recognition){setError('Nutze die Mikrofontaste deiner iPhone-Tastatur für die Spracheingabe.');return}
+    const rec=new Recognition();speech.current=rec;rec.lang='de-CH';rec.continuous=false
+    rec.onresult=event=>setNotes(old=>[old,event.results[0][0].transcript].filter(Boolean).join(' ').trim())
+    rec.onend=()=>setDictating(false)
+    rec.onerror=()=>{setDictating(false);setError('Spracheingabe nicht verfügbar. Du kannst die iPhone-Diktierfunktion verwenden.')}
+    try{rec.start();setDictating(true)}catch{setError('Mikrofon nicht verfügbar.')}
+  }
+  if(loading)return <div className="hub-page"><h1 className="text-2xl font-bold">Gesundheit</h1><p className="text-muted">Lade Familienprofile…</p></div>
   return <div className="hub-page space-y-5">
-    <h1 className="text-2xl font-bold">Gesundheit</h1>
-    <p className="text-muted">Dein Verlauf und ausdrücklich mit dir geteilte Einträge.</p>
-    {error && <p role="alert" className="text-red-500">{error}</p>}
-    <PushSettings />
-    {!persons.length ? <Link to="/family" className="hub-button inline-block">Zuerst ein persönliches Profil anlegen</Link> : <form onSubmit={save} className="hub-card space-y-4">
-      <div className="grid sm:grid-cols-2 gap-3">
-        <label className="hub-label">Profil<select className="hub-input" value={personId} onChange={e => setPersonId(e.target.value)}>{persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-        <label className="hub-label">Eintrag<select className="hub-input" value={kind} onChange={e => { setKind(e.target.value); setTitle(e.target.value==='symptom' ? symptomCatalog[0] : '') }}>{Object.entries(kinds).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-      </div>
-      <label className="hub-label">{kind==='symptom' ? 'Beschwerde' : 'Titel'}<input className="hub-input" list={kind==='symptom' ? 'symptoms' : undefined} value={title} onChange={e => setTitle(e.target.value)} required maxLength={200} /></label>
-      <datalist id="symptoms">{symptomCatalog.map(s => <option key={s} value={s} />)}</datalist>
-      {kind==='symptom' && <label className="hub-label">Intensität: {intensity} / 10<input aria-label="Intensität" className="w-full mt-2" type="range" min="0" max="10" value={intensity} onChange={e => setIntensity(e.target.value)} /></label>}
-      <label className="hub-label">Datum und Uhrzeit<input type="datetime-local" className="hub-input" required value={at} onChange={e => setAt(e.target.value)} /></label>
-      {kind==='hospital' && <label className="hub-label">Entlassung (optional)<input type="datetime-local" className="hub-input" value={until} onChange={e => setUntil(e.target.value)} /></label>}
-      {kind==='medication' && <div className="grid sm:grid-cols-2 gap-3"><label className="hub-label">Dosierung<input required className="hub-input" value={dose} placeholder="z.B. 1 Tablette" onChange={e => setDose(e.target.value)} /></label><label className="hub-label">Tägliche Uhrzeiten<input required className="hub-input" value={slots} placeholder="08:00, 20:00" onChange={e => setSlots(e.target.value)} /></label></div>}
-      {kind==='nutrition' && <label className="hub-label"><input type="checkbox" checked={favorite} onChange={e => setFavorite(e.target.checked)} /> Als Favorit speichern</label>}
-      {kind!=='case' && <label className="hub-label">Gesundheitsfall (optional)<select className="hub-input" value={caseId} onChange={e => setCaseId(e.target.value)}><option value="">Ohne Zuordnung</option>{rows.filter(r => r.kind==='case' && r.person_id===personId && r.owner_id===userId).map(r => <option key={r.id} value={r.id}>{r.title}</option>)}</select></label>}
-      <label className="hub-label">Notizen / Befund / Plan<textarea className="hub-input" rows="3" value={notes} onChange={e => setNotes(e.target.value)} /></label>
-      <div className="flex flex-wrap gap-3"><button className="hub-button" disabled={busy || !personId}>Speichern</button><button className="text-blue-500 px-3" type="button" onClick={dictate}>{dictating ? 'Diktat beenden' : '🎙 Diktieren'}</button></div>
-      <p className="text-xs text-muted">Diktat startet nur auf Wunsch. Je nach Browser verarbeitet ein externer Spracherkennungsdienst die Aufnahme.</p>
-    </form>}
-    <section className="hub-card space-y-3"><h2 className="font-semibold">Heute · Einnahmen</h2>
-      {rows.filter(r => r.kind==='medication' && canEdit(r)).map(r => <div key={r.id}><p>{r.title} · {r.details.dosage}</p><div className="flex flex-wrap gap-3">{(r.details.slots || []).map(slot => {
-        const taken=doses.some(d => d.resource_id===r.id && d.day===today && d.slot===slot)
-        return <label className="flex items-center gap-2 py-2" key={slot}><input type="checkbox" disabled={busy} checked={taken} onChange={() => run(() => taken ? family.untake(r.id,today,slot) : family.take(r.id,today,slot))} />{slot}</label>
-      })}</div></div>)}
-      {!rows.some(r => r.kind==='medication') && <p className="text-muted">Noch kein Dosierungsplan angelegt.</p>}
-    </section>
-    <section className="hub-card"><h2 className="font-semibold mb-2">Erinnerungen</h2><p className="text-xs text-muted mb-2">Aktiviere die Hintergrund-Erinnerungen oben, um auf diesem Gerät auch bei geschlossener App benachrichtigt zu werden.</p>{rows.filter(r => ['reminder','visit','examination'].includes(r.kind) && localDay(new Date(r.occurred_at))>=today).sort((a,b) => a.occurred_at.localeCompare(b.occurred_at)).map(r => <p key={r.id}>{new Date(r.occurred_at).toLocaleString()} · {r.title}</p>)}</section>
-    <label className="hub-label">Verlauf filtern<select className="hub-input" value={filter} onChange={e => setFilter(e.target.value)}><option value="">Alle sichtbaren Profile</option>{persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-    <div className="grid sm:grid-cols-2 gap-4">{visible.map(r => <article key={r.id} className="hub-card space-y-2">
-      <p className="text-xs text-muted">{kinds[r.kind]} · {new Date(r.occurred_at).toLocaleString()} · {persons.find(p => p.id===r.person_id)?.name || 'Geteiltes Profil'}</p>
-      <h2 className="font-semibold">{r.title}{r.intensity!==null && <span className="text-blue-500"> · {r.intensity}/10</span>}</h2>
-      {r.intensity!==null && <meter className="w-full" min="0" max="10" value={r.intensity} aria-label="Beschwerdeintensität" />}
-      <p className="whitespace-pre-wrap text-sm">{r.details.notes}</p>
-      {r.details.dosage && <p className="text-sm">{r.details.dosage} · {(r.details.slots || []).join(', ')}</p>}
-      {r.details.case_id && <p className="text-xs text-muted">Fall: {rows.find(c => c.id===r.details.case_id)?.title || 'Separat freigegebener Fall'}</p>}
-      {r.kind==='nutrition' && r.details.favorite && r.owner_id===userId && <button disabled={busy} className="text-blue-500 text-sm py-2" onClick={() => run(() => family.create({ person_id: r.person_id, kind: 'nutrition', title: r.title, details: r.details, occurred_at: new Date().toISOString() }))}>★ Heute erneut erfassen</button>}
-      {canEdit(r) && <details><summary className="text-blue-500 text-sm cursor-pointer">Notiz bearbeiten</summary><form className="space-y-2" onSubmit={e => { e.preventDefault(); const text=new FormData(e.currentTarget).get('notes'); run(() => family.update(r.id,{ details: { ...r.details, notes: text } })) }}><textarea className="hub-input" name="notes" defaultValue={r.details.notes} /><button className="hub-button" disabled={busy}>Änderung speichern</button></form></details>}
-      <ResourceSharing row={r} userId={userId} members={members} grants={grants} reload={load} onError={setError} />
-      {r.owner_id===userId && <button disabled={busy} className="text-sm text-red-500" onClick={() => { if (confirm('Eintrag löschen?')) run(() => family.remove(r)) }}>Löschen</button>}
-    </article>)}</div>
-    {!visible.length && <p className="text-muted">Noch keine Einträge. Neue Einträge sind zunächst privat.</p>}
+    <header>
+      <h1 className="text-2xl font-bold">Gesundheit</h1>
+      <p className="text-muted mt-1">Beschwerden notieren, Einnahmen abhaken und Verläufe ansehen.</p>
+    </header>
+    {error&&<p role="alert" className="hub-feedback-error">{error}</p>}
+    {success&&<p role="status" className="hub-feedback-success">{success}</p>}
+    {!persons.length ? <div className="hub-card space-y-3">
+      <h2 className="font-semibold">Noch kein Gesundheitsprofil vorhanden</h2>
+      <p className="text-muted text-sm">Erstelle ein eigenes Profil oder bitte ein Familienmitglied um die Freigabe.</p>
+      <Link className="hub-button inline-block" to="/family">Familienprofile einrichten</Link>
+    </div> : <>
+      <section className="hub-card space-y-3" aria-labelledby="health-person-heading">
+        <h2 id="health-person-heading" className="font-semibold">Für wen?</h2>
+        <div className="hub-person-picks">
+          {persons.map(p=><button key={p.id} type="button" className={`hub-person-pill ${personId===p.id?'is-selected':''}`}
+            aria-pressed={personId===p.id} onClick={()=>{setPersonId(p.id);setSuccess('');setError('')}}>{p.name}</button>)}
+        </div>
+        {selected&&!mine&&<p className="text-xs text-muted">Du darfst für {selected.name} neue Einträge erfassen. Frühere private Akten bleiben geschützt.</p>}
+      </section>
+      <section aria-labelledby="health-action-heading">
+        <h2 id="health-action-heading" className="hub-section-title">Was möchtest du tun?</h2>
+        <div className="hub-quick-actions">
+          {quickActions.map(action=><button key={action.id} type="button" onClick={()=>chooseMode(action.id)}
+            className={`hub-quick-action ${mode===action.id?'is-selected':''}`} aria-pressed={mode===action.id}>
+            <span className="hub-quick-symbol">{action.icon}</span>
+            <span><strong>{action.title}</strong><small>{action.subtitle}</small></span>
+          </button>)}
+        </div>
+      </section>
+      {mode==='doses'&&<section className="hub-card space-y-3">
+        <h2 className="text-lg font-semibold">Einnahmen heute · {selected?.name}</h2>
+        {intakeEvents.length ? <>
+          <p className="text-sm text-muted">{checked} von {intakeEvents.length} bestätigt</p>
+          {intakeEvents.map(({row,slot,taken})=><label key={row.id+slot} className="hub-intake-item">
+            <input type="checkbox" disabled={busy} checked={taken}
+              onChange={()=>run(()=>taken?family.untake(row.id,today,slot):family.take(row.id,today,slot))}/>
+            <span className="flex-1"><strong>{row.title}</strong><small>{row.details?.dosage} · {slot} Uhr</small></span>
+            <span className={taken?'text-green-700 font-semibold':'text-muted'}>{taken?'Erledigt':'Offen'}</span>
+          </label>)}
+        </> : <>
+          <p className="text-muted text-sm">Für {selected?.name} sind noch keine Einnahmen eingerichtet, auf die du Zugriff hast.</p>
+          <button type="button" className="hub-button" onClick={()=>chooseMode('medication')}>Vitamin oder Medikament anlegen</button>
+        </>}
+      </section>}
+      {mode!=='doses'&&<form onSubmit={save} className="hub-card space-y-4">
+        <h2 className="text-lg font-semibold">{mode==='symptom'?'Welche Beschwerde?':
+          mode==='medication'?'Präparat einmalig einrichten':
+          mode==='nutrition'?'Was wurde gegessen?':'Weiteren Gesundheitseintrag erfassen'}</h2>
+        {mode==='symptom'&&<>
+          <div className="hub-choice-grid">
+            {knownSymptomNames.map(name=><button key={name} type="button" className={`hub-choice ${title===name?'is-selected':''}`}
+              aria-pressed={title===name} onClick={()=>setTitle(name)}>{name}</button>)}
+          </div>
+          <label className="hub-label">Andere Beschwerde oder Bezeichnung
+            <input className="hub-input" value={title} onChange={e=>setTitle(e.target.value)} maxLength={200} required/>
+          </label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between"><label htmlFor="severity" className="font-semibold text-sm">Wie stark?</label><strong className="text-lg">{intensity} / 10</strong></div>
+            <input id="severity" aria-label="Intensität" className="w-full" type="range" min="0" max="10"
+              value={intensity} onChange={e=>setIntensity(Number(e.target.value))}/>
+            <div className="flex justify-between text-xs text-muted"><span>Keine</span><span>Sehr stark</span></div>
+          </div>
+        </>}
+        {mode==='medication'&&<>
+          <label className="hub-label">Was wird eingenommen?
+            <input className="hub-input" placeholder="z. B. Magnesium" value={title} onChange={e=>setTitle(e.target.value)} required maxLength={200}/>
+          </label>
+          <div className="hub-person-picks">
+            {['Vitamin','Supplement','Medikament'].map(c=><button key={c} type="button" className={`hub-person-pill ${category===c?'is-selected':''}`}
+              onClick={()=>setCategory(c)} aria-pressed={category===c}>{c}</button>)}
+          </div>
+          <label className="hub-label">Dosierung
+            <input className="hub-input" placeholder="z. B. 1 Kapsel" value={dose} onChange={e=>setDose(e.target.value)} required maxLength={120}/>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="hub-label">Uhrzeit<input className="hub-input" type="time" value={slot1} onChange={e=>setSlot1(e.target.value)} required/></label>
+            <label className="hub-label">Zweite Uhrzeit (optional)<input className="hub-input" type="time" value={slot2} onChange={e=>setSlot2(e.target.value)}/></label>
+          </div>
+        </>}
+        {mode==='nutrition'&&<>
+          <div className="hub-choice-grid">
+            {[...new Set([...favoriteFoods,...mealSuggestions])].map(food=><button key={food} type="button"
+              className={`hub-choice ${title===food?'is-selected':''}`} aria-pressed={title===food}
+              onClick={()=>setTitle(food)}>{food}</button>)}
+          </div>
+          <label className="hub-label">Mahlzeit oder Lebensmittel
+            <input className="hub-input" placeholder="Einmal schreiben, später auswählen" value={title} onChange={e=>setTitle(e.target.value)} required maxLength={200}/>
+          </label>
+          <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={favorite} onChange={e=>setFavorite(e.target.checked)}/>Für später merken</label>
+        </>}
+        {mode==='advanced'&&<>
+          <label className="hub-label">Was möchtest du dokumentieren?
+            <select className="hub-input" value={advancedKind} onChange={e=>setAdvancedKind(e.target.value)}>
+              {advancedKinds.map(k=><option key={k} value={k}>{kinds[k]}</option>)}
+            </select>
+          </label>
+          <label className="hub-label">Bezeichnung
+            <input className="hub-input" placeholder="z. B. Arzttermin" required maxLength={200} value={title} onChange={e=>setTitle(e.target.value)}/>
+          </label>
+        </>}
+        <details className="hub-more">
+          <summary>Datum, Bemerkungen oder Spracheingabe ergänzen (optional)</summary>
+          <div className="space-y-3 mt-3">
+            <label className="hub-label">Datum und Uhrzeit
+              <input className="hub-input" type="datetime-local" value={at} onChange={e=>setAt(e.target.value)} required/>
+            </label>
+            <label className="hub-label">Bemerkung
+              <textarea className="hub-input" rows="3" value={notes} onChange={e=>setNotes(e.target.value)}
+                placeholder="Optional etwas dazu sagen oder schreiben"/>
+            </label>
+            <button type="button" className="hub-secondary-button" onClick={dictate}>{dictating?'Diktat beenden':'Mit Sprache ergänzen'}</button>
+            <p className="text-xs text-muted">Je nach Browser erfolgt die Spracherkennung durch den Geräteanbieter.</p>
+          </div>
+        </details>
+        <button className="hub-button w-full sm:w-auto" disabled={busy||!personId||!title.trim()}>
+          {busy?'Speichere…':mode==='symptom'?'Beschwerde speichern':'Speichern'}
+        </button>
+      </form>}
+      {mode!=='doses'&&intakeEvents.length>0&&<section className="hub-card space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-semibold">Einnahmen heute</h2>
+          <button className="text-blue-600 text-sm" type="button" onClick={()=>chooseMode('doses')}>Alle anzeigen</button>
+        </div>
+        <p className="text-sm text-muted">{checked}/{intakeEvents.length} erledigt</p>
+        {intakeEvents.slice(0,3).map(({row,slot,taken})=><label key={row.id+slot} className="hub-intake-item">
+          <input type="checkbox" checked={taken} disabled={busy} onChange={()=>run(()=>taken?family.untake(row.id,today,slot):family.take(row.id,today,slot))}/>
+          <span className="flex-1"><strong>{row.title}</strong><small>{row.details?.dosage} · {slot}</small></span>
+          <span>{taken?'✓':''}</span>
+        </label>)}
+      </section>}
+      {visible.length>0&&<section className="hub-card space-y-3">
+        <div className="flex justify-between items-center gap-2">
+          <h2 className="font-semibold">Zuletzt erfasst</h2>
+          <button type="button" className="text-blue-600 text-sm" onClick={()=>setFilterHistory(v=>!v)}>{filterHistory?'Weniger anzeigen':'Verlauf anzeigen'}</button>
+        </div>
+        {(filterHistory?visible:visible.slice(0,3)).map(r=><article key={r.id} className="border-b border-line last:border-0 pb-3 space-y-2">
+          <p className="text-xs text-muted">{kinds[r.kind]} · {asDate(r.occurred_at)}</p>
+          <h3 className="font-semibold">{r.title}{r.kind==='symptom'&&r.intensity!==null?` · ${r.intensity}/10`:''}</h3>
+          {r.details?.notes&&<p className="text-sm whitespace-pre-wrap">{r.details.notes}</p>}
+          {r.details?.dosage&&<p className="text-sm text-muted">{r.details.dosage}</p>}
+          {filterHistory&&<>
+            {canEdit(r)&&<details className="hub-more"><summary>Bemerkung bearbeiten</summary>
+              <form className="space-y-2 mt-2" onSubmit={e=>{e.preventDefault();const value=new FormData(e.currentTarget).get('notes');run(()=>family.update(r.id,{details:{...r.details,notes:value}}))}}>
+                <textarea className="hub-input" name="notes" defaultValue={r.details?.notes||''}/><button className="hub-button" disabled={busy}>Änderung speichern</button>
+              </form>
+            </details>}
+            <ResourceSharing row={r} userId={userId} members={members} grants={grants} reload={load} onError={setError}/>
+            {r.owner_id===userId&&<button className="text-xs text-red-600" disabled={busy} onClick={()=>{if(window.confirm('Eintrag wirklich löschen?'))run(()=>family.remove(r))}}>Löschen</button>}
+          </>}
+        </article>)}
+      </section>}
+      <details className="hub-more">
+        <summary>Weitere Funktionen: Arztbesuche, Untersuchungen, Erinnerungen</summary>
+        <div className="space-y-3 mt-3">
+          <button type="button" className="hub-secondary-button" onClick={()=>{chooseMode('advanced');setTitle('')}}>Arztbesuch oder weiteren Eintrag erfassen</button>
+          <PushSettings/>
+        </div>
+      </details>
+    </>}
   </div>
 }

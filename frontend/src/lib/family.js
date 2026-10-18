@@ -4,6 +4,29 @@ async function uid() { const { data: { user }, error } = await sb.auth.getUser()
 export const family = {
   userId: uid,
   persons: () => result(sb.from('kv_persons').select('*').in('fh_kind', ['self','child']).order('name')),
+  // Canonical profiles with explicit caregiver authorisation.
+  selectableProfiles: () => result(sb.rpc('fh_selectable_profiles')),
+  carePermissions: () => result(sb.from('fh_profile_care').select('*')),
+  grantCare: (personId, caregiverId) => result(sb.from('fh_profile_care').insert({
+    person_id: personId, caregiver_id: caregiverId,
+  })),
+  revokeCare: (personId, caregiverId) => result(sb.from('fh_profile_care').delete()
+    .eq('person_id', personId).eq('caregiver_id', caregiverId)),
+  createForPerson: ({ person_id, kind, title, occurred_at, intensity = null, details = {} }) =>
+    result(sb.rpc('fh_create_for_person', {
+      p_person: person_id, p_kind: kind, p_title: title,
+      p_at: occurred_at, p_intensity: intensity, p_details: details,
+    })),
+  // Separate opt-in Knowledge read access; never grants health access.
+  knowledgeShares: () => result(sb.from('fh_knowledge_shares').select('*')),
+  shareKnowledge: async recipientId => result(sb.from('fh_knowledge_shares').insert({
+    owner_id: await uid(), recipient_id: recipientId,
+  })),
+  unshareKnowledge: async recipientId => result(sb.from('fh_knowledge_shares')
+    .delete().eq('owner_id', await uid()).eq('recipient_id', recipientId)),
+  knowledgeFeed: (limit = 40, offset = 0) => result(sb.rpc('fh_knowledge_feed', {
+    p_limit: limit, p_offset: offset,
+  })),
   addPerson: async (name, kind) => result(sb.from('kv_persons').insert({ user_id: await uid(), name, fh_kind: kind }).select().single()),
   members: () => result(sb.from('fh_members').select('*')),
   families: () => result(sb.from('fh_families').select('*')),
