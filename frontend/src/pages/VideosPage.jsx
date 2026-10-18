@@ -1,169 +1,215 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { colorClass } from './SettingsPage'
+import { family } from '../lib/family'
 import { getActivePersonId } from '../lib/person'
-import PersonFilter, { PersonBadge } from '../components/PersonFilter'
 
-function fallbackPreview(url) {
-  return url ? `https://api.microlink.io/?url=${encodeURIComponent(url)}&embed=image.url` : ''
-}
+const PAGE_SIZE = 36
 
-function getDomain(url) {
-  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return '' }
-}
-
-// "241K views · 4.8K reactions" und Co. — yt-dlp setzt sowas bei
-// Facebook-Videos als Title. Erkennen wir, damit displayTitle() auf
-// die Beschreibung (= eigentlicher Caption-Text) ausweichen kann.
-function looksLikeStats(t) {
-  if (!t) return false
-  return /^\d+([\.,]\d+)?\s*[KMB]?\s*(views?|aufrufe)\b/i.test(t) ||
-         /\breactions?\b|\breaktionen\b/i.test(t)
-}
-
-// Liefert einen lesbaren Titel: bevorzugt einen echten vom Worker,
-// sonst die erste Zeile der Beschreibung, sonst "domain — pfad-slug".
-function displayTitle(video) {
-  const t = (video.title || '').trim()
-  const desc = (video.description || '').trim()
-  if (t && t !== video.url && !looksLikeStats(t)) return t
-
-  if (desc) {
-    const firstLine = desc.split(/\r?\n/).map(l => l.trim()).find(Boolean)
-    if (firstLine) return firstLine.slice(0, 120)
-  }
-
-  const d = getDomain(video.url)
-  if (!d) return video.url
+function safeSource(url) {
   try {
-    const p = new URL(video.url).pathname.replace(/\/+$/, '')
-    if (!p || p === '/') return d
-    const last = p.split('/').filter(Boolean).pop() || ''
-    const slug = decodeURIComponent(last).replace(/[-_]/g, ' ').slice(0, 60)
-    return slug ? `${d} — ${slug}` : d
-  } catch { return d }
+    const parsed = new URL(url)
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null
+  } catch { return null }
+}
+
+function displayTitle(video) {
+  const title = String(video.title || '').trim()
+  const description = String(video.description || '').trim()
+  const isStats = /\bviews?\b.*\breactions?\b/i.test(title)
+  if (title && title !== video.source_url && !isStats) return title
+  if (description) return description.split('\n').map(x => x.trim()).find(Boolean)?.slice(0,120) || 'Video'
+  try {
+    const u = new URL(video.source_url)
+    const name = u.pathname.split('/').filter(Boolean).pop()
+    return name ? u.hostname + ' · ' + decodeURIComponent(name).replace(/[-_]/g,' ') : u.hostname
+  } catch { return 'Video' }
 }
 
 export default function VideosPage() {
   const [videos, setVideos] = useState([])
-  const [persons, setPersons] = useState([])
-  const [categories, setCategories] = useState([])
-  const [filterPersonId, setFilterPersonId] = useState(null)
-  const [brokenPreviews, setBrokenPreviews] = useState(() => new Set())
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [members, setMembers] = useState([])
+  const [userId, setUserId] = useState('')
+  const [owner, setOwner] = useState('all')
+  const [total, setTotal] = useState(0)
+  const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [url, setUrl] = useState('')
+  const [brokenImages, setBrokenImages] = useState(() => new Set())
+  const requestNumber = useRef(0)
+  const currentUser = useRef('')
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
+  async function fetchVideos(selected = 'all', offset = 0, id = currentUser.current) {
+    const requestId = ++requestNumber.current
+    setBusy(true)
+    setError('')
     try {
-      const [vids, pers, cats] = await Promise.all([
-        api.getVideos().catch(err => { setError(err.message); return [] }),
-        api.getPersons().catch(() => []),
-        api.getCategories().catch(() => []),
-      ])
-      setVideos(vids); setPersons(pers); setCategories(cats)
-    } finally { setLoading(false) }
+      const target = selected === 'all' ? null : selected === 'mine' ? id : selected
+      const entries = await family.knowledgeVideos(PAGE_SIZE, offset, target)
+      if (requestId !== requestNumber.current) return
+      const batch = entries || []
+      setVideos(previous => offset ? [...previous, ...batch] : batch)
+      setTotal(batch[0]?.total_count ?? (offset ? offset : 0))
+    } catch (problem) {
+      if (requestId === requestNumber.current) setError(problem.message || 'Videos konnten nicht geladen werden.')
+    } finally {
+      if (requestId === requestNumber.current) {
+        setBusy(false)
+        setLoading(false)
+      }
+    }
   }
 
-  const personsById = useMemo(() => Object.fromEntries(persons.map(p => [p.id, p])), [persons])
-  const categoriesById = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories])
-  const filteredVideos = useMemo(() => {
-    if (!filterPersonId) return videos
-    if (filterPersonId === 'none') return videos.filter(v => !v.person_id)
-    return videos.filter(v => v.person_id === filterPersonId)
-  }, [videos, filterPersonId])
+  useEffect(() => {
+    let current = true
+    Promise.all([family.userId(), family.members()]).then(async ([id, list]) => {
+      if (!current) return
+      setUserId(id)
+      currentUser.current = id
+      setMembers(list || [])
+      await fetchVideos('all',0,id)
+    }).catch(problem => {
+      if (current) { setError(problem.message || 'Videos nicht verfügbar.'); setLoading(false) }
+    })
+    return () => { current=false; requestNumber.current++ }
+  }, [])
 
-  async function addVideo(e) {
-    e.preventDefault()
+  function chooseOwner(next) {
+    setOwner(next)
+    setVideos([])
+    setTotal(0)
+    setNotice('')
+    fetchVideos(next,0)
+  }
+
+  async function addVideo(event) {
+    event.preventDefault()
     if (!url.trim()) return
     setAdding(true)
+    setError('')
     try {
-      const video = await api.addVideo(url.trim(), null, getActivePersonId())
-      setVideos(prev => [video, ...prev])
+      await api.addVideo(url.trim(), null, getActivePersonId())
       setUrl('')
-    } catch (err) { setError(err.message) }
+      setNotice('Video hinzugefügt. Die Verarbeitung erfolgt anschliessend.')
+      await fetchVideos(owner,0)
+    } catch (problem) { setError(problem.message || 'Video konnte nicht hinzugefügt werden.') }
     finally { setAdding(false) }
   }
 
-  async function deleteVideo(id) {
-    if (!confirm('Dieses Video löschen?')) return
-    await api.deleteVideo(id)
-    setVideos(prev => prev.filter(v => v.id !== id))
+  async function removeVideo(id) {
+    if (!window.confirm('Dieses eigene Video wirklich löschen?')) return
+    setBusy(true)
+    try {
+      await api.deleteVideo(id)
+      await fetchVideos(owner,0)
+    } catch (problem) { setError(problem.message || 'Löschen fehlgeschlagen.') }
+    finally { setBusy(false) }
   }
 
-  const statusColors = { done: 'text-green-600 dark:text-green-400', error: 'text-red-600 dark:text-red-400', processing: 'text-yellow-600 dark:text-yellow-400', pending: 'text-muted' }
-  const statusLabels = { done: '✅ Transkribiert', error: '❌ Fehler', processing: '⏳ Wird verarbeitet', pending: '🕐 Ausstehend' }
+  const related = members.filter(m => m.user_id !== userId && members.some(own =>
+    own.user_id === userId && own.family_id === m.family_id
+  )).filter((m,index,all) => all.findIndex(x => x.user_id === m.user_id) === index)
+  const selectedName = related.find(m => m.user_id === owner)?.display_name
+  const noSharedVideos = owner !== 'mine' && (owner === 'all' || !!selectedName)
 
-  function statusLabel(v) {
-    const base = statusLabels[v.transcript_status] || v.transcript_status
-    if (v.transcript_status === 'pending' && v.transcript_retry_count > 0) {
-      return `🔁 Erneuter Versuch ${v.transcript_retry_count + 1}/3`
-    }
-    return base
-  }
+  return <div className="hub-page space-y-5">
+    <header>
+      <h1 className="text-2xl font-bold">Familienvideos</h1>
+      <p className="text-muted mt-1">Deine Videos und die von Familienmitgliedern ausdrücklich freigegebenen Videos.</p>
+    </header>
 
-  return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold text-fg mb-4 sm:mb-6">Videos</h2>
+    <section className="hub-card space-y-3">
+      <h2 className="font-semibold">Wessen Videos möchtest du sehen?</h2>
+      <div className="hub-person-picks">
+        <button type="button" className={`hub-person-pill ${owner==='all'?'is-selected':''}`}
+          aria-pressed={owner==='all'} onClick={()=>chooseOwner('all')}>Alle freigegebenen</button>
+        <button type="button" className={`hub-person-pill ${owner==='mine'?'is-selected':''}`}
+          aria-pressed={owner==='mine'} onClick={()=>chooseOwner('mine')}>Meine Videos</button>
+        {related.map(member => <button type="button" key={member.user_id}
+          className={`hub-person-pill ${owner===member.user_id?'is-selected':''}`}
+          aria-pressed={owner===member.user_id} onClick={()=>chooseOwner(member.user_id)}>
+          {member.display_name}
+        </button>)}
+      </div>
+      {total > 0 && <p className="text-sm text-muted">{total.toLocaleString('de-CH')} Videos in dieser Auswahl</p>}
+    </section>
 
-      <form onSubmit={addVideo} className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-6 sm:mb-8">
-        <input type="url" inputMode="url" autoCapitalize="none" autoCorrect="off"
-          placeholder="YouTube- oder Video-URL…" value={url} onChange={e => setUrl(e.target.value)}
-          className="flex-1 bg-surface border border-line rounded-lg px-4 py-3 text-fg placeholder:text-muted focus:outline-none focus:border-blue-500" />
-        <button type="submit" disabled={adding}
-          className="px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors whitespace-nowrap">
-          {adding ? 'Wird hinzugefügt…' : 'Video hinzufügen'}
-        </button>
+    {error && <p className="hub-feedback-error" role="alert">{error}</p>}
+    {notice && <p className="hub-feedback-success" role="status">{notice}</p>}
+
+    <details className="hub-more">
+      <summary>Neues Video hinzufügen</summary>
+      <form onSubmit={addVideo} className="space-y-3 mt-3">
+        <p className="text-sm text-muted">Link zu YouTube oder einer anderen Videoquelle einfügen. Das Video wird in deinem persönlichen Knowledge gespeichert.</p>
+        <label className="hub-label">Video-Adresse
+          <input type="url" className="hub-input" value={url} onChange={e=>setUrl(e.target.value)}
+            placeholder="https://…" required autoCapitalize="none" autoCorrect="off" />
+        </label>
+        <button className="hub-button" type="submit" disabled={adding}>{adding?'Wird hinzugefügt…':'Video hinzufügen'}</button>
       </form>
+    </details>
 
-      {error && <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>}
-      <PersonFilter persons={persons} value={filterPersonId} onChange={setFilterPersonId} />
-      {loading ? <p className="text-muted">Lädt...</p> : (
-        <div className="space-y-3">
-          {filteredVideos.length === 0 && <p className="text-muted">Keine Videos in dieser Auswahl.</p>}
-          {filteredVideos.map(video => {
-            const previewUrl = video.thumbnail_url
-              || (!brokenPreviews.has(video.id) ? fallbackPreview(video.url) : '')
-            return (
-            <div key={video.id} className="bg-surface border border-line rounded-xl p-4 flex gap-4">
-              <div className="w-24 h-16 rounded-lg overflow-hidden bg-elevated flex-shrink-0 flex items-center justify-center text-2xl">
-                {previewUrl ? (
-                  <img src={previewUrl} alt="" loading="lazy"
-                    onError={() => setBrokenPreviews(prev => { const n = new Set(prev); n.add(video.id); return n })}
-                    className="w-full h-full object-cover" />
-                ) : '🎬'}
+    {loading ? <p className="text-muted">Videos werden geladen…</p> : <>
+      {!busy && videos.length === 0 && <section className="hub-card space-y-3">
+        <h2 className="font-semibold">Hier sind noch keine Videos sichtbar</h2>
+        {noSharedVideos ? <>
+          <p className="text-sm text-muted">
+            {selectedName ? `Die Videos von ${selectedName} sind noch nicht für dich sichtbar.`
+              : 'In deinem aktuellen Konto liegen keine Videos. Die vorhandenen Familienvideos benötigen zuerst eine Freigabe durch das jeweilige Konto.'}
+          </p>
+          <p className="text-sm text-muted">
+            Dafür im betreffenden Konto unter <strong>Knowledge → Meine Knowledge-Einträge mit der Familie teilen</strong> die Freigabe aktivieren.
+            Danach erscheinen die Videos hier automatisch.
+          </p>
+          <Link to="/knowledge" className="hub-secondary-button">Zu Knowledge und Freigaben</Link>
+        </> : <p className="text-sm text-muted">In deinem aktuellen Konto wurden noch keine Videos gespeichert.</p>}
+      </section>}
+
+      {videos.length > 0 && <section aria-label="Videoliste" className="space-y-3">
+        {videos.map(video => {
+          const source = safeSource(video.source_url)
+          const own = video.mine
+          const title = displayTitle(video)
+          const preview = video.thumbnail_url && !brokenImages.has(video.video_id)
+          return <article className="hub-card !p-3 sm:!p-4" key={video.video_id}>
+            <div className="flex gap-3 items-start">
+              <div className="w-24 h-16 rounded-xl bg-elevated shrink-0 flex items-center justify-center overflow-hidden">
+                {preview ? <img src={video.thumbnail_url} alt="" loading="lazy"
+                  className="w-full h-full object-cover"
+                  onError={()=>setBrokenImages(previous => new Set([...previous,video.video_id]))} /> :
+                  <span className="text-2xl text-muted">▶</span>}
               </div>
-              <div className="flex-1 min-w-0">
-                <Link to={`/videos/${video.id}`} className="font-medium text-fg hover:text-blue-600 dark:text-blue-400 transition-colors block truncate">
-                  {displayTitle(video)}
-                </Link>
-                {video.title && video.title !== video.url && (
-                  <p className="text-xs text-subtle mt-1 truncate">{video.url}</p>
-                )}
-                <div className="flex items-center gap-2 sm:gap-4 mt-2 flex-wrap">
-                  <span className={`text-xs ${statusColors[video.transcript_status] || 'text-muted'}`} title={video.transcript_error || ''}>
-                    {statusLabel(video)}
-                  </span>
-                  <PersonBadge person={personsById[video.person_id]} />
-                  {categoriesById[video.category_id] && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] border ${colorClass(categoriesById[video.category_id].color)}`}>
-                      {categoriesById[video.category_id].name}
-                    </span>
-                  )}
-                  {video.duration_seconds && <span className="text-xs text-subtle">{Math.floor(video.duration_seconds/60)}m {video.duration_seconds%60}s</span>}
-                  <span className="text-xs text-subtle">{new Date(video.created_at).toLocaleDateString('de-DE')}</span>
+              <div className="flex-1 min-w-0 space-y-1">
+                {own ? <Link to={`/videos/${video.video_id}`}
+                  className="text-fg font-semibold break-words block">{title}</Link> :
+                  source ? <a href={source} target="_blank" rel="noopener noreferrer"
+                    className="font-semibold text-fg break-words block">{title}</a> :
+                  <span className="font-semibold text-fg break-words block">{title}</span>}
+                <p className="text-xs text-muted">
+                  {video.mine?'Von mir':`Von ${video.owner_name}`}
+                  {video.assigned_person && ` · Für ${video.assigned_person}`}
+                  {video.created_at && ` · ${new Date(video.created_at).toLocaleDateString('de-CH')}`}
+                </p>
+                {video.description && <p className="text-xs text-muted break-words line-clamp-2">{video.description}</p>}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  {source && !own && <a href={source} target="_blank" rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600">Video öffnen ↗</a>}
+                  {own && <span className="text-xs text-muted">{video.transcript_status==='done'?'Transkribiert':
+                    video.transcript_status==='processing'?'In Verarbeitung':'Gespeichert'}</span>}
+                  {own && <button type="button" disabled={busy}
+                    className="text-xs text-red-600" onClick={()=>removeVideo(video.video_id)}>Löschen</button>}
                 </div>
               </div>
-              <button onClick={() => deleteVideo(video.id)} className="text-subtle hover:text-red-600 dark:text-red-400 transition-colors p-1">🗑️</button>
             </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+          </article>
+        })}
+        {videos.length < total && <button type="button" disabled={busy}
+          className="hub-secondary-button w-full"
+          onClick={()=>fetchVideos(owner,videos.length)}>{busy?'Lade weitere Videos…':'Weitere Videos anzeigen'}</button>}
+      </section>}
+    </>}
+  </div>
 }
