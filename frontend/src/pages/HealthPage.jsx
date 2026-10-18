@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { family, kinds, symptomCatalog, localDay, localDateTime } from '../lib/family'
+import { buildSymptomPeriod, symptomPeriodLabel } from '../lib/symptomPeriod'
 import ResourceSharing from '../components/ResourceSharing'
 import PushSettings from '../components/PushSettings'
 
@@ -34,6 +35,13 @@ export default function HealthPage() {
   const [notes,setNotes] = useState('')
   const [intensity,setIntensity] = useState(5)
   const [at,setAt] = useState(localDateTime())
+  // The date range is deliberately visible for symptoms, including past events.
+  const [symptomFromDate,setSymptomFromDate] = useState(localDay())
+  const [symptomUntilMode,setSymptomUntilMode] = useState('same')
+  const [symptomToDate,setSymptomToDate] = useState('')
+  const [symptomUseTime,setSymptomUseTime] = useState(false)
+  const [symptomFromTime,setSymptomFromTime] = useState('')
+  const [symptomToTime,setSymptomToTime] = useState('')
   const [dose,setDose] = useState('')
   const [slot1,setSlot1] = useState('08:00')
   const [slot2,setSlot2] = useState('')
@@ -109,10 +117,16 @@ export default function HealthPage() {
     if(kind==='nutrition')details={...details,favorite}
     setBusy(true);setError('');setSuccess('')
     try {
+      const period = kind==='symptom' ? buildSymptomPeriod({
+        fromDate:symptomFromDate, untilMode:symptomUntilMode,
+        untilDate:symptomToDate, useTime:symptomUseTime,
+        fromTime:symptomFromTime, untilTime:symptomToTime,
+      }) : null
       await family.createForPerson({
         person_id:personId,kind,title:label,
-        occurred_at:new Date(at).toISOString(),
-        intensity:kind==='symptom'?Number(intensity):null,details,
+        occurred_at:period?.occurred_at || new Date(at).toISOString(),
+        intensity:kind==='symptom'?Number(intensity):null,
+        details:{ ...details,...(period?.details || {}) },
       })
       await load()
       setSuccess(`${label} für ${selected.name} gespeichert.`)
@@ -196,6 +210,42 @@ export default function HealthPage() {
               value={intensity} onChange={e=>setIntensity(Number(e.target.value))}/>
             <div className="flex justify-between text-xs text-muted"><span>Keine</span><span>Sehr stark</span></div>
           </div>
+          <section className="rounded-xl border border-line p-3 space-y-3" aria-label="Beschwerdezeitraum">
+            <h3 className="font-semibold">Wann war die Beschwerde?</h3>
+            <p className="text-sm text-muted">Auch rückwirkend erfassen. Uhrzeiten sind freiwillig.</p>
+            <label className="hub-label">Von (Datum)
+              <input className="hub-input" type="date" required max={localDay()}
+                value={symptomFromDate}
+                onChange={e=>setSymptomFromDate(e.target.value)}/>
+            </label>
+            <label className="hub-label">Bis
+              <select className="hub-input" aria-label="Ende der Beschwerde" value={symptomUntilMode}
+                onChange={e=>setSymptomUntilMode(e.target.value)}>
+                <option value="same">Am gleichen Tag</option>
+                <option value="date">Anderes Enddatum wählen</option>
+                <option value="ongoing">Dauert noch an</option>
+              </select>
+            </label>
+            {symptomUntilMode==='date'&&<label className="hub-label">Bis (Datum)
+              <input className="hub-input" type="date" required min={symptomFromDate} max={localDay()}
+                value={symptomToDate} onChange={e=>setSymptomToDate(e.target.value)}/>
+            </label>}
+            <label className="flex items-center gap-3 text-sm">
+              <input type="checkbox" checked={symptomUseTime}
+                onChange={e=>setSymptomUseTime(e.target.checked)}/>
+              Uhrzeit ebenfalls erfassen
+            </label>
+            {symptomUseTime&&<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="hub-label">Von (Uhrzeit)
+                <input className="hub-input" type="time" required value={symptomFromTime}
+                  onChange={e=>setSymptomFromTime(e.target.value)}/>
+              </label>
+              {symptomUntilMode!=='ongoing'&&<label className="hub-label">Bis (Uhrzeit)
+                <input className="hub-input" type="time" required value={symptomToTime}
+                  onChange={e=>setSymptomToTime(e.target.value)}/>
+              </label>}
+            </div>}
+          </section>
         </>}
         {mode==='medication'&&<>
           <label className="hub-label">Was wird eingenommen?
@@ -235,11 +285,11 @@ export default function HealthPage() {
           </label>
         </>}
         <details className="hub-more">
-          <summary>Datum, Bemerkungen oder Spracheingabe ergänzen (optional)</summary>
+          <summary>{mode==='symptom'?'Bemerkung oder Spracheingabe ergänzen (optional)':'Datum, Bemerkungen oder Spracheingabe ergänzen (optional)'}</summary>
           <div className="space-y-3 mt-3">
-            <label className="hub-label">Datum und Uhrzeit
+            {mode!=='symptom'&&<label className="hub-label">Datum und Uhrzeit
               <input className="hub-input" type="datetime-local" value={at} onChange={e=>setAt(e.target.value)} required/>
-            </label>
+            </label>}
             <label className="hub-label">Bemerkung
               <textarea className="hub-input" rows="3" value={notes} onChange={e=>setNotes(e.target.value)}
                 placeholder="Optional etwas dazu sagen oder schreiben"/>
@@ -270,7 +320,7 @@ export default function HealthPage() {
           <button type="button" className="text-blue-600 text-sm" onClick={()=>setFilterHistory(v=>!v)}>{filterHistory?'Weniger anzeigen':'Verlauf anzeigen'}</button>
         </div>
         {(filterHistory?visible:visible.slice(0,3)).map(r=><article key={r.id} className="border-b border-line last:border-0 pb-3 space-y-2">
-          <p className="text-xs text-muted">{kinds[r.kind]} · {asDate(r.occurred_at)}</p>
+          <p className="text-xs text-muted">{kinds[r.kind]} · {r.kind==='symptom'?symptomPeriodLabel(r):asDate(r.occurred_at)}</p>
           <h3 className="font-semibold">{r.title}{r.kind==='symptom'&&r.intensity!==null?` · ${r.intensity}/10`:''}</h3>
           {r.details?.notes&&<p className="text-sm whitespace-pre-wrap">{r.details.notes}</p>}
           {r.details?.dosage&&<p className="text-sm text-muted">{r.details.dosage}</p>}
