@@ -7,11 +7,11 @@ import { disablePush } from '../lib/push'
 import HubIcon from './HubIcon'
 
 const navItems = [
-  { to: '/', label: 'Übersicht', icon: 'home', exact: true },
-  { to: '/knowledge', label: 'Knowledge', icon: 'knowledge' },
+  { to: '/', label: 'Start', icon: 'home', exact: true },
   { to: '/health', label: 'Gesundheit', icon: 'health' },
-  { to: '/documents', label: 'Dokumententresor', icon: 'documents' },
-  { to: '/family', label: 'Familie & Freigaben', icon: 'family' },
+  { to: '/knowledge', label: 'Knowledge', icon: 'knowledge' },
+  { to: '/documents', label: 'Dokumente', icon: 'documents' },
+  { to: '/family', label: 'Familie', icon: 'family' },
 ]
 const knowledgeItems = [
   { to: '/videos', label: 'Videos', icon: 'videos' },
@@ -92,11 +92,7 @@ export default function Layout({ session }) {
             </svg>
           </button>
         </div>
-        <div className="px-3 pt-3">
-          <p className="hub-nav-label mb-2">Aktives Profil</p>
-          <PersonSwitcher onSelect={closeDrawer} />
-        </div>
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           <p className="hub-nav-label">Deine Bereiche</p>
           {navItems.map(item => (
             <NavLink
@@ -116,8 +112,12 @@ export default function Layout({ session }) {
               {item.label}
             </NavLink>
           ))}
-          <p className="hub-nav-label !mt-5">Knowledge · Direktzugriff</p>
-          <div className="grid grid-cols-2 gap-1">{knowledgeItems.map(item => <NavLink key={item.to} to={item.to} onClick={closeDrawer} className={({isActive}) => `hub-nav-shortcut ${isActive ? 'bg-blue-600 text-white' : 'text-muted hover:bg-elevated hover:text-fg'}`}><HubIcon name={item.icon} /><span>{item.label}</span></NavLink>)}</div>
+          <details className="hub-more !mt-4">
+            <summary>Weitere Knowledge-Funktionen</summary>
+            <div className="grid grid-cols-2 gap-1 mt-3">{knowledgeItems.map(item => <NavLink key={item.to} to={item.to} onClick={closeDrawer} className={({isActive}) => `hub-nav-shortcut ${isActive ? 'bg-blue-600 text-white' : 'text-muted hover:bg-elevated hover:text-fg'}`}><HubIcon name={item.icon} /><span>{item.label}</span></NavLink>)}</div>
+            <p className="hub-nav-label mt-3">Zuordnung für Knowledge</p>
+            <PersonSwitcher onSelect={closeDrawer} />
+          </details>
           <NavLink to="/settings" onClick={closeDrawer} className={({isActive}) => `hub-nav-shortcut !mt-4 ${isActive ? 'bg-blue-600 text-white' : 'text-muted hover:bg-elevated hover:text-fg'}`}><HubIcon name="settings" />Einstellungen</NavLink>
         </nav>
         <div className="p-3 border-t border-line">
@@ -138,7 +138,7 @@ export default function Layout({ session }) {
       <main className="flex-1 min-w-0 pb-24 md:pb-0">
         <Outlet />
       </main>
-      <nav aria-label="Hauptnavigation" className="hub-mobile-nav md:hidden">{navItems.slice(0,4).map(item => <NavLink key={item.to} to={item.to} end={item.exact} onClick={closeDrawer} className={({isActive}) => isActive ? 'is-active' : ''}><HubIcon name={item.icon} /><span>{item.to === '/documents' ? 'Dokumente' : item.label}</span></NavLink>)}</nav>
+      <nav aria-label="Hauptnavigation" className="hub-mobile-nav md:hidden">{navItems.slice(0,4).map(item => <NavLink key={item.to} to={item.to} end={item.exact} onClick={closeDrawer} className={({isActive}) => isActive ? 'is-active' : ''}><HubIcon name={item.icon} /><span>{item.label}</span></NavLink>)}</nav>
     </div>
   )
 }
