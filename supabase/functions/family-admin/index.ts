@@ -55,6 +55,49 @@ Deno.serve(async req => {
     const allowedFamilies = new Set(adminFamilies.map(m => m.family_id as string))
 
     const { action } = input
+
+    // Password renewal is a private, owner-initiated task. A request must
+    // already exist for this exact account; another user cannot trigger it.
+    if (action === 'own-reset-status') {
+      const { data:pending, error } = await service
+        .from('fh_password_renewals')
+        .select('requested_at')
+        .eq('user_id', user.id)
+        .is('completed_at', null)
+        .maybeSingle()
+      if (error) return reply({error:'Status derzeit nicht verfügbar.'},503)
+      return reply({ required: Boolean(pending) })
+    }
+
+    if (action === 'set-own-password') {
+      if (origin && !origins.has(origin)) return reply({error:'Unzulässige Herkunft.'},403)
+      if (input.confirm !== true) return reply({error:'Bitte bestätigen.'},400)
+      const password = input.password
+      if (typeof password !== 'string' || password.length < 12 || password.length > 128)
+        return reply({error:'Neues Passwort muss 12 bis 128 Zeichen enthalten.'},400)
+      const {data:pending,error:pendingError} = await service
+        .from('fh_password_renewals')
+        .select('requested_at')
+        .eq('user_id',user.id)
+        .is('completed_at',null)
+        .maybeSingle()
+      if (pendingError) return reply({error:'Zurücksetzung nicht verfügbar.'},503)
+      if (!pending) return reply({error:'Für dieses Konto ist keine Passworterneuerung vorgemerkt.'},409)
+
+      // Official Supabase Admin Auth API; do not update auth.users via SQL.
+      const {error:changeError}=await service.auth.admin.updateUserById(user.id,{password})
+      if (changeError) return reply({error:'Passwort konnte nicht gesetzt werden.'},500)
+      const {error:doneError}=await service
+        .from('fh_password_renewals')
+        .update({completed_at:new Date().toISOString()})
+        .eq('user_id',user.id)
+        .is('completed_at',null)
+      const {error:auditError}=await service.from('fh_audit').insert({
+        actor_id:user.id,owner_id:user.id,action:'self_password_renewed',
+      })
+      return reply({success:true,warning:Boolean(doneError||auditError)})
+    }
+
     if (action === 'list') {
       const { data: all, error } = await service
         .from('fh_members').select('family_id,user_id,display_name,role')
