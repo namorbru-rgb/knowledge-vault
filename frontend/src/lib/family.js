@@ -27,6 +27,9 @@ export const family = {
   knowledgeFeed: (limit = 40, offset = 0) => result(sb.rpc('fh_knowledge_feed', {
     p_limit: limit, p_offset: offset,
   })),
+  knowledgeVideos: (limit = 36, offset = 0, owner = null) => result(sb.rpc('fh_knowledge_videos', {
+    p_limit: limit, p_offset: offset, p_owner: owner,
+  })),
   addPerson: async (name, kind) => result(sb.from('kv_persons').insert({ user_id: await uid(), name, fh_kind: kind }).select().single()),
   members: () => result(sb.from('fh_members').select('*')),
   families: () => result(sb.from('fh_families').select('*')),
