@@ -219,7 +219,7 @@ export default function HealthPage() {
                 onChange={e=>setSymptomFromDate(e.target.value)}/>
             </label>
             <label className="hub-label">Bis
-              <select className="hub-input" value={symptomUntilMode}
+              <select className="hub-input" aria-label="Ende der Beschwerde" value={symptomUntilMode}
                 onChange={e=>setSymptomUntilMode(e.target.value)}>
                 <option value="same">Am gleichen Tag</option>
                 <option value="date">Anderes Enddatum wählen</option>
