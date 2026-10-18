@@ -61,11 +61,26 @@ test('family member selects spouse and children and explicitly shares Knowledge'
     await expect(names.getByRole('button',{name,exact:true})).toBeVisible()
   await names.getByRole('button',{name:'Aurelia'}).click()
   await page.getByRole('button',{name:'Husten',exact:true}).click()
+  // A parent can record a symptom period from weeks ago, including precise times.
+  const period=page.getByRole('region',{name:'Beschwerdezeitraum'})
+  await period.getByLabel('Von (Datum)').fill('2026-08-03')
+  await period.getByLabel('Bis',{exact:true}).selectOption('date')
+  await period.getByLabel('Bis (Datum)').fill('2026-08-06')
+  await period.getByLabel('Uhrzeit ebenfalls erfassen').check()
+  await period.getByLabel('Von (Uhrzeit)').fill('08:15')
+  await period.getByLabel('Bis (Uhrzeit)').fill('19:30')
   await page.getByRole('button',{name:'Beschwerde speichern'}).click()
   await expect(page.getByRole('status')).toContainText('Husten für Aurelia gespeichert')
   expect(writes).toHaveLength(1)
   expect(writes[0].p_person).toBe(fa)
   expect(writes[0].p_title).toBe('Husten')
+  expect(writes[0].p_details.period).toMatchObject({
+    from_date:'2026-08-03',to_date:'2026-08-06',
+    from_time:'08:15',to_time:'19:30',precision:'minute',ongoing:false,
+  })
+  expect(new Date(writes[0].p_at).getFullYear()).toBe(2026)
+  expect(new Date(writes[0].p_details.end_at).getTime())
+    .toBeGreaterThan(new Date(writes[0].p_at).getTime())
   await page.getByRole('navigation',{name:'Hauptnavigation'}).getByRole('link',{name:'Knowledge'}).click()
   await expect(page.getByText('Gemeinsame Reiseerinnerung')).toBeVisible()
   await expect(page.getByText('Eintrag von Roman, den Katarina lesen darf.')).toBeVisible()
