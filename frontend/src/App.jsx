@@ -18,6 +18,7 @@ import HealthPage from './pages/HealthPage'
 import DocumentsPage from './pages/DocumentsPage'
 import FamilyPage from './pages/FamilyPage'
 import PasswordSettings from './components/PasswordSettings'
+import OwnPasswordRenewal from './components/OwnPasswordRenewal'
 import KnowledgeOAuthAuthorize from './pages/KnowledgeOAuthAuthorize'
 
 
@@ -26,6 +27,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [authError, setAuthError] = useState('')
   const [recovery,setRecovery]=useState(false)
+  const [renewal,setRenewal]=useState('idle')
 
   useEffect(() => {
     let cancelled = false
@@ -53,6 +55,18 @@ export default function App() {
     return () => { cancelled = true; subscription.unsubscribe() }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    if (!session?.user?.id) { setRenewal('idle'); return }
+    setRenewal('checking')
+    supabase.functions.invoke('family-admin', { body:{ action:'own-reset-status' } })
+      .then(({data,error}) => {
+        if (!cancelled) setRenewal(!error && data?.required === true ? 'required' : 'idle')
+      })
+      .catch(() => { if (!cancelled) setRenewal('idle') })
+    return () => { cancelled=true }
+  }, [session?.user?.id])
+
   if (window.location.hash.startsWith('#/oauth-authorize?')) return <KnowledgeOAuthAuthorize />
 
   if (loading) return (
@@ -63,6 +77,8 @@ export default function App() {
 
   if (!session) return <LoginPage initialError={authError} />
   if (recovery) return <main className="hub-page"><PasswordSettings onDone={()=>setRecovery(false)}/></main>
+  if (renewal === 'checking') return <div className="min-h-screen bg-app flex items-center justify-center"><div className="text-muted text-lg">Prüfe Anmeldung…</div></div>
+  if (renewal === 'required') return <OwnPasswordRenewal onDone={()=>setRenewal('idle')} />
 
   return (
     <Routes>
