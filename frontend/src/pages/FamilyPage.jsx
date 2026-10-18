@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { family } from '../lib/family'
 import PasswordSettings from '../components/PasswordSettings'
+import PasskeySettings from '../components/PasskeySettings'
 import FamilyAdminPanel from '../components/FamilyAdminPanel'
 
 export default function FamilyPage() {
@@ -43,6 +44,7 @@ export default function FamilyPage() {
     {error && <p className="text-red-600" role="alert">{error}</p>}
     {info && <p className="text-green-700" role="status">{info}</p>}
 
+    <PasskeySettings />
     <FamilyAdminPanel />
 
     <section className="hub-card space-y-3">
