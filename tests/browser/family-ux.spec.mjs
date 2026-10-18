@@ -64,7 +64,7 @@ test('family member selects spouse and children and explicitly shares Knowledge'
   // A parent can record a symptom period from weeks ago, including precise times.
   const period=page.getByRole('region',{name:'Beschwerdezeitraum'})
   await period.getByLabel('Von (Datum)').fill('2026-08-03')
-  await period.getByLabel('Bis',{exact:true}).selectOption('date')
+  await period.locator('select').selectOption('date')
   await period.getByLabel('Bis (Datum)').fill('2026-08-06')
   await period.getByLabel('Uhrzeit ebenfalls erfassen').check()
   await period.getByLabel('Von (Uhrzeit)').fill('08:15')
