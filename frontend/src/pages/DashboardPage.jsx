@@ -26,24 +26,38 @@ export default function DashboardPage(){
   const [error,setError]=useState('')
   const [filter,setFilter]=useState('all')
   const [limit,setLimit]=useState(20)
+  const [hasMore,setHasMore]=useState(false)
+  const [loadingMore,setLoadingMore]=useState(false)
   const [showShare,setShowShare]=useState(false)
   const [expanded,setExpanded]=useState({})
   async function load(){
     const results=await Promise.allSettled([
-      api.getStats(),family.knowledgeFeed(100,0),family.members(),
+      api.getStats(),family.knowledgeFeed(60,0),family.members(),
       family.knowledgeShares(),family.userId(),
     ])
     const val=i=>results[i].status==='fulfilled'?results[i].value:null
     if(results[1].status==='rejected')setError('Das gemeinsame Wissen konnte nicht geladen werden.')
-    setStats(val(0)||{});setFeed(val(1)||[]);setMembers(val(2)||[])
+    setStats(val(0)||{});setFeed(val(1)||[]);setHasMore((val(1)||[]).length===60);setMembers(val(2)||[])
     setShares(val(3)||[]);setUserId(val(4)||'')
     setLoading(false)
   }
   useEffect(()=>{load().catch(err=>{setError(err.message);setLoading(false)})},[])
   const recipients=members.filter(m=>m.user_id!==userId && members.some(my=>my.user_id===userId&&my.family_id===m.family_id))
     .filter((m,i,all)=>all.findIndex(x=>x.user_id===m.user_id)===i)
-  const filtered=feed.filter(row=>filter==='all'||(filter==='mine'?row.mine:row.record_owner===filter))
-    .slice(0,limit)
+  const available=feed.filter(row=>filter==='all'||(filter==='mine'?row.mine:row.record_owner===filter))
+  const filtered=available.slice(0,limit)
+  async function more(){
+    if(available.length>limit){setLimit(n=>n+20);return}
+    if(!hasMore||loadingMore)return
+    setLoadingMore(true)
+    try{
+      const older=await family.knowledgeFeed(60,feed.length)
+      setFeed(prev=>[...prev,...older])
+      setHasMore(older.length===60)
+      setLimit(n=>n+20)
+    }catch(err){setError(err.message||'Weitere Einträge konnten nicht geladen werden.')}
+    finally{setLoadingMore(false)}
+  }
   async function toggle(recipient){
     setBusy(true);setError('')
     try{
@@ -91,12 +105,12 @@ export default function DashboardPage(){
             </div>
           </article>
         })}
-        {filtered.length===limit&&limit<feed.length&&<button className="hub-secondary-button w-full" type="button"
-          onClick={()=>setLimit(n=>n+20)}>Weitere Einträge anzeigen</button>}
-        {limit>=100&&feed.length>=100&&<p className="text-xs text-muted">Es gibt weitere ältere Einträge. Sie werden bei Bedarf geladen.</p>}
+        {(available.length>limit||hasMore)&&<button className="hub-secondary-button w-full" type="button"
+          onClick={more} disabled={loadingMore}>{loadingMore?'Lade…':'Weitere Einträge anzeigen'}</button>}
       </div> : <div className="bg-elevated rounded-xl p-4">
-        <p className="font-semibold">Hier ist noch nichts freigegeben.</p>
+        <p className="font-semibold">{hasMore?'In den neuesten Einträgen ist hier noch nichts.':'Hier ist noch nichts freigegeben.'}</p>
         <p className="text-sm text-muted mt-1">Katarina kann ihre Knowledge-Einträge mit dir teilen. Die Freigabe nimmt sie einmal in ihrem eigenen Konto vor.</p>
+        {hasMore&&<button className="hub-secondary-button mt-3" type="button" onClick={more} disabled={loadingMore}>Ältere Einträge laden</button>}
       </div>}
     </section>
     <details className="hub-more" open={showShare} onToggle={e=>setShowShare(e.currentTarget.open)}>
