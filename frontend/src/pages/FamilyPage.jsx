@@ -1,56 +1,111 @@
 import { useEffect, useState } from 'react'
 import { family } from '../lib/family'
 import PasswordSettings from '../components/PasswordSettings'
-import KnowledgeSharing from '../components/KnowledgeSharing'
+import FamilyAdminPanel from '../components/FamilyAdminPanel'
+
 export default function FamilyPage() {
-  const [persons, setPersons] = useState([]), [members, setMembers] = useState([]), [families, setFamilies] = useState([]), [audit,setAudit] = useState([])
-  const [userId,setUserId] = useState(''), [error,setError] = useState(''), [busy,setBusy] = useState(false)
-  const [name,setName] = useState(''), [kind,setKind] = useState('self'), [familyName,setFamilyName] = useState(''), [displayName,setDisplayName] = useState('')
-  const [fid,setFid] = useState(''), [account,setAccount] = useState(''), [memberName,setMemberName] = useState(''), [role,setRole] = useState('member')
-  async function load() { try { const [p,m,f,a,u] = await Promise.all([family.persons(),family.members(),family.families(),family.audit(),family.userId()]); setPersons(p); setMembers(m); setFamilies(f); setAudit(a); setUserId(u) } catch(e) { setError(e.message) } }
+  const [persons, setPersons] = useState([])
+  const [members, setMembers] = useState([])
+  const [families, setFamilies] = useState([])
+  const [userId, setUserId] = useState('')
+  const [name, setName] = useState('')
+  const [familyName, setFamilyName] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
+
+  async function load() {
+    try {
+      const [p, m, f, u] = await Promise.all([
+        family.persons(), family.members(), family.families(), family.userId(),
+      ])
+      setPersons(p); setMembers(m); setFamilies(f); setUserId(u)
+    } catch (err) { setError(err.message) }
+  }
   useEffect(() => { load() }, [])
-  async function run(e,action) { e.preventDefault(); setBusy(true); setError(''); try { await action(); await load() } catch(e) { setError(e.message) } finally { setBusy(false) } }
+
+  async function run(event, operation) {
+    event.preventDefault(); setBusy(true); setError(''); setInfo('')
+    try { await operation(); await load(); setInfo('Gespeichert.') }
+    catch (err) { setError(err.message) }
+    finally { setBusy(false) }
+  }
+
+  const ownProfile = persons.find(p => p.fh_kind === 'self')
+  const children = persons.filter(p => p.fh_kind === 'child')
+
   return <div className="hub-page space-y-5">
-    <h1 className="text-2xl font-bold">Familie & persönliche Profile</h1>
-    <KnowledgeSharing />
-    <details className="hub-card"><summary className="font-semibold cursor-pointer">Passwort ändern</summary><div className="mt-3"><PasswordSettings /></div></details>
-    <p className="text-muted">Jeder Erwachsene meldet sich selbst an. Knowledge-Personen sind Zuordnungen und keine Benutzerkonten. Kinderprofile verwaltet ein Sorgeberechtigter.</p>
-    {error && <p role="alert" className="text-red-500">{error}</p>}
-    <section className="hub-card space-y-2">
-      <h2 className="font-semibold">Familie und Profile</h2>
-      <p className="text-sm text-muted">Familie: {families.map(f=>f.name).join(', ')||'noch nicht eingerichtet'}</p>
-      <p className="text-sm text-muted">Familienkonten: {[...new Set(members.map(m=>m.display_name))].join(', ')||'keine'}</p>
-      <p className="text-sm text-muted">Meine Profile: {persons.map(p=>p.name).join(', ')||'keine'}</p>
+    <header className="space-y-2">
+      <h1 className="text-2xl font-bold">Meine Familie</h1>
+      <p className="text-muted">Familienmitglieder und Zugänge an einem Ort verwalten.</p>
+    </header>
+    {error && <p className="text-red-600" role="alert">{error}</p>}
+    {info && <p className="text-green-700" role="status">{info}</p>}
+
+    <FamilyAdminPanel />
+
+    <section className="hub-card space-y-3">
+      <h2 className="font-semibold text-lg">Familie</h2>
+      {families.length > 0 ? families.map(f => <div key={f.id} className="space-y-2">
+        <div className="text-lg font-semibold">{f.name}</div>
+        <div className="space-y-1">
+          {members.filter(m => m.family_id === f.id).map(m =>
+            <div className="flex justify-between gap-2 rounded-lg bg-elevated px-3 py-2" key={m.user_id}>
+              <span>{m.display_name}</span>
+              <span className="text-sm text-muted">{m.role === 'admin' ? 'Administration' : 'Mitglied'}</span>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-muted">Erwachsene verwenden ihre persönlichen Konten. Private Einträge bleiben durch eigene Zugriffsrechte geschützt.</p>
+      </div>) : <form className="space-y-3" onSubmit={event => run(event, async () => {
+        await family.createFamily(familyName.trim(), displayName.trim())
+        setFamilyName(''); setDisplayName('')
+      })}>
+        <p className="text-sm text-muted">Du gehörst noch keiner Familie an. Nur einmal einrichten.</p>
+        <label className="hub-label">Familienname
+          <input className="hub-input" required value={familyName} onChange={event => setFamilyName(event.target.value)} placeholder="z. B. Bruderer" />
+        </label>
+        <label className="hub-label">Dein Vorname
+          <input className="hub-input" required value={displayName} onChange={event => setDisplayName(event.target.value)} />
+        </label>
+        <button className="hub-button" disabled={busy}>Familie erstellen</button>
+      </form>}
     </section>
-    <details className="space-y-3">
-      <summary className="hub-card cursor-pointer font-semibold">Weitere Profile und Familienkonten verwalten</summary>
-    <div className="hub-card"><p>Deine Konto-ID (für eine Einladung):</p><code className="text-sm break-all">{userId}</code></div>
-    <form className="hub-card space-y-3" onSubmit={e => run(e,async () => { await family.addPerson(name.trim(),kind); setName('') })}>
-      <h2 className="font-semibold">Persönliches Profil oder Kind anlegen</h2>
-      <label className="hub-label">Name<input className="hub-input" required maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
-      <label className="hub-label">Profil<select className="hub-input" value={kind} onChange={e => setKind(e.target.value)}><option value="self">Mein eigenes Profil</option><option value="child">Kind unter meiner Verantwortung</option></select></label>
-      <button className="hub-button" disabled={busy}>Profil anlegen</button>
-      {persons.map(p => <p key={p.id}>{p.name} · {p.fh_kind === 'self' ? 'Eigenes Profil' : 'Kind'}</p>)}
-    </form>
-    {families.length===0&&<form className="hub-card space-y-3" onSubmit={e => run(e,() => family.createFamily(familyName.trim(),displayName.trim()))}>
-      <h2 className="font-semibold">Familie erstellen</h2>
-      <label className="hub-label">Familienname<input required className="hub-input" value={familyName} onChange={e => setFamilyName(e.target.value)} /></label>
-      <label className="hub-label">Dein Anzeigename<input required className="hub-input" value={displayName} onChange={e => setDisplayName(e.target.value)} /></label>
-      <button disabled={busy} className="hub-button">Familie erstellen</button>
-    </form>}
-    <form className="hub-card space-y-3" onSubmit={e => run(e,() => family.addMember(fid,account,memberName.trim(),role))}>
-      <h2 className="font-semibold">Bestehendes Konto zur Familie hinzufügen</h2>
-      <label className="hub-label">Familie<select className="hub-input" required value={fid} onChange={e => setFid(e.target.value)}><option value="">Auswählen</option>{families.filter(f => members.some(m => m.family_id===f.id && m.user_id===userId && m.role==='admin')).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
-      <label className="hub-label">Konto-ID<input className="hub-input" required pattern="[0-9a-fA-F-]{36}" value={account} onChange={e => setAccount(e.target.value)} /></label>
-      <label className="hub-label">Anzeigename<input className="hub-input" required value={memberName} onChange={e => setMemberName(e.target.value)} /></label>
-      <label className="hub-label">Rolle<select className="hub-input" value={role} onChange={e => setRole(e.target.value)}><option value="member">Familienmitglied</option><option value="admin">Familienadministration</option></select></label>
-      <button className="hub-button" disabled={busy || !fid}>Hinzufügen</button>
-      <p className="text-xs text-muted">Die Rolle erlaubt Familienverwaltung. Private Einträge werden dadurch nicht freigegeben.</p>
-      {members.map(m => <p key={`${m.family_id}-${m.user_id}`}>{m.display_name} · {m.role === 'admin' ? 'Administration' : 'Mitglied'}</p>)}
-    </form>
+
+    <section className="hub-card space-y-3">
+      <h2 className="font-semibold text-lg">Gesundheitsprofile</h2>
+      {ownProfile ? <p>Mein Profil: <strong>{ownProfile.name}</strong></p> :
+        <form className="space-y-2" onSubmit={event => run(event, async () => {
+          await family.addPerson(name.trim(), 'self'); setName('')
+        })}>
+          <p className="text-sm text-muted">Dein persönliches Profil einmalig anlegen.</p>
+          <label className="hub-label">Dein Name
+            <input className="hub-input" required value={name} onChange={event => setName(event.target.value)} />
+          </label>
+          <button disabled={busy} className="hub-button">Mein Profil anlegen</button>
+        </form>}
+      {children.length > 0 && <div className="space-y-1">
+        <h3 className="font-medium">Kinderprofile</h3>
+        {children.map(c => <p key={c.id} className="rounded-lg bg-elevated px-3 py-2">{c.name}</p>)}
+      </div>}
+      <details className="border border-line rounded-xl p-3">
+        <summary className="cursor-pointer font-medium">Kind hinzufügen</summary>
+        <form className="space-y-2 mt-3" onSubmit={event => run(event, async () => {
+          await family.addPerson(name.trim(), 'child'); setName('')
+        })}>
+          <label className="hub-label">Name des Kindes
+            <input className="hub-input" required value={name} onChange={event => setName(event.target.value)} />
+          </label>
+          <button className="hub-button" disabled={busy}>Kinderprofil anlegen</button>
+        </form>
+      </details>
+    </section>
+
+    <details className="hub-card">
+      <summary className="cursor-pointer font-medium">Mein eigenes Passwort ändern</summary>
+      <div className="mt-3"><PasswordSettings /></div>
     </details>
-    <details className="hub-card"><summary className="font-semibold cursor-pointer">Aktivitätsprotokoll</summary>
-      <div className="mt-3"><h2 className="font-semibold mb-3">Meine Daten</h2>{audit.map(a => <p className="text-xs text-muted py-1" key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.action} · {a.actor_id}</p>)}</div>
-    </details>
+    <p className="text-xs text-muted">Die Familienadministration gibt keine automatische Einsicht in private Gesundheitsakten.</p>
   </div>
 }
