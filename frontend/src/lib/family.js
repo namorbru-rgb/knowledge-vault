@@ -30,6 +30,26 @@ export const family = {
   knowledgeVideos: (limit = 36, offset = 0, owner = null) => result(sb.rpc('fh_knowledge_videos', {
     p_limit: limit, p_offset: offset, p_owner: owner,
   })),
+  videoShares: () => result(sb.from('fh_video_shares').select('owner_id,recipient_id,created_at')),
+  videoShareRequests: () => result(sb.from('fh_video_share_requests')
+    .select('owner_id,requester_id,created_at')),
+  requestVideos: async owner => result(sb.from('fh_video_share_requests')
+    .insert({ owner_id:owner, requester_id:await uid() })),
+  cancelVideoRequest: async owner => result(sb.from('fh_video_share_requests')
+    .delete().eq('owner_id',owner).eq('requester_id',await uid())),
+  denyVideoRequest: async requester => result(sb.from('fh_video_share_requests')
+    .delete().eq('owner_id',await uid()).eq('requester_id',requester)),
+  shareMyVideos: async recipient => {
+    const me=await uid()
+    await result(sb.from('fh_video_shares').insert({
+      owner_id:me,recipient_id:recipient,
+    }))
+    await result(sb.from('fh_video_share_requests').delete()
+      .eq('owner_id',me).eq('requester_id',recipient))
+  },
+  revokeMyVideos: async recipient => result(sb.from('fh_video_shares')
+    .delete().eq('owner_id',await uid()).eq('recipient_id',recipient)),
+
   addPerson: async (name, kind) => result(sb.from('kv_persons').insert({ user_id: await uid(), name, fh_kind: kind }).select().single()),
   members: () => result(sb.from('fh_members').select('*')),
   families: () => result(sb.from('fh_families').select('*')),
