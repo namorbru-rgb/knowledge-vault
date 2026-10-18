@@ -34,7 +34,7 @@ test('family owner resets family password without repeat login',async ({page})=>
   await page.getByLabel('Passwort',{exact:true}).fill('test-only-placeholder')
   await page.getByRole('button',{name:'Anmelden',exact:true}).click()
   await page.getByRole('button',{name:'Menü öffnen'}).click()
-  await page.locator('aside').getByRole('link',{name:/Familie & Freigaben/}).click()
+  await page.locator('aside').getByRole('link',{name:/Familie/}).click()
   await expect(page.getByRole('heading',{name:'Meine Familie'})).toBeVisible()
   await expect(page.getByRole('heading',{name:'Face ID / Passkey'})).toHaveCount(0)
   const admin=page.getByRole('region',{name:'Benutzer & Passwörter verwalten'})
