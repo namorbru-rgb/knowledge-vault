@@ -62,7 +62,7 @@ test('mobile personal login, module navigation and recurring health entry withou
   expect(rows[0].owner_id).toBe(uid)
   expect(rows[0].intensity).toBe(5)
   await page.getByRole('button',{name:'Menü öffnen'}).click()
-  await page.getByRole('link',{name:'Dokumente',exact:true}).click()
+  await page.locator('aside').getByRole('link',{name:'Dokumente',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Privater Dokumententresor'})).toBeVisible()
   await expect(page.getByText('Noch keine Dokumente.',{exact:true})).toBeVisible()
   await page.screenshot({path:'test-results/mobile-documents.png',fullPage:true,animations:'disabled'})
