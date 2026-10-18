@@ -73,35 +73,21 @@ Deno.serve(async req => {
     const familyId = String(input.familyId || '')
     if (!uuidPattern.test(familyId) || !allowedFamilies.has(familyId)) return reply({ error: 'Familie nicht freigegeben.' }, 403)
 
-    // Privileged writes require a fresh and server-verifiable authentication ceremony.
-    // A Supabase-signed passkey JWT (WebAuthn user verification) replaces retyping
-    // the administrator password. Password reauthentication remains the fallback.
-    const recentPasskey = (() => {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-        const now = Math.floor(Date.now() / 1000)
-        return payload.sub === user.id &&
-          typeof payload.iat === 'number' && payload.iat >= now - 180 && payload.iat <= now + 30 &&
-          Array.isArray(payload.amr) &&
-          payload.amr.some((entry: {method?: string, timestamp?: number}) =>
-            entry?.method === 'passkey' &&
-            typeof entry.timestamp === 'number' &&
-            entry.timestamp >= now - 180 && entry.timestamp <= now + 30)
-      } catch { return false }
-    })()
-    if (!recentPasskey) {
-      const adminPassword = input.adminPassword
-      if (typeof adminPassword !== 'string' || !adminPassword || adminPassword.length > 256 || !user.email)
-        return reply({ error: 'Bitte Face ID verwenden oder das eigene Passwort bestätigen.' }, 403)
-      const checkClient = createClient(url, anonKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      })
-      const { data: check, error: checkError } = await checkClient.auth.signInWithPassword({
-        email: user.email, password: adminPassword,
-      })
-      if (checkError || check.user?.id !== user.id) return reply({ error: 'Dein eigenes Passwort stimmt nicht.' }, 403)
-      await checkClient.auth.signOut({ scope: 'local' }).catch(() => {})
-    }
+    // Owner explicitly opts for an active-session workflow without repeated
+    // password prompts while Passkeys remain unavailable in Supabase.
+    // This relies on the independently verified Auth user, an active session,
+    // immutable allowlisted superadmin identity and family membership above.
+    // The browser must show an explicit per-action confirmation.
+    // Fail closed if the short rolling audit limit cannot be checked.
+    if (input.confirm !== true) return reply({ error: 'Änderung bitte ausdrücklich bestätigen.' }, 400)
+    if (origin && !origins.has(origin)) return reply({ error: 'Unzulässige Herkunft.' }, 403)
+    const since = new Date(Date.now() - 3600000).toISOString()
+    const { data: changes, error: quotaError } = await service
+      .from('fh_audit').select('id').eq('actor_id', user.id)
+      .in('action', ['superadmin_password_changed', 'superadmin_account_created'])
+      .gte('created_at', since).limit(9)
+    if (quotaError) return reply({ error: 'Prüfung der Änderungen nicht verfügbar.' }, 503)
+    if ((changes || []).length >= 8) return reply({ error: 'Sicherheitslimit: maximal 8 Änderungen pro Stunde.' }, 429)
 
     if (action === 'set-password') {
       const targetId = String(input.targetUserId || '')
