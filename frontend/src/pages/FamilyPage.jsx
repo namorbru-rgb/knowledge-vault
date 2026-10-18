@@ -44,7 +44,7 @@ export default function FamilyPage() {
     {error && <p className="text-red-600" role="alert">{error}</p>}
     {info && <p className="text-green-700" role="status">{info}</p>}
 
-    <PasskeySettings />
+    {import.meta.env.VITE_PASSKEY_ENABLED === 'true' && <PasskeySettings />}
     <FamilyAdminPanel />
 
     <section className="hub-card space-y-3">

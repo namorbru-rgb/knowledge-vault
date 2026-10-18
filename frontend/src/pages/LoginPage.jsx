@@ -31,9 +31,9 @@ export default function LoginPage({ initialError }) {
   return <main className="min-h-screen bg-app text-fg flex items-center justify-center p-5">
     <form onSubmit={login} className="hub-card w-full max-w-sm space-y-4">
       <h1 className="text-2xl font-bold">Family Hub</h1>
-      <p className="text-muted">Mit Face ID anmelden. E-Mail und Passwort bleiben als Reserve verfügbar.</p>
-      {!signup && <button type="button" disabled={busy} onClick={loginWithPasskey} className="hub-button w-full">Mit Face ID / Passkey anmelden</button>}
-      {!signup && <p className="text-xs text-muted">Beim ersten Mal nach der Anmeldung unter Familie einen Passkey einrichten.</p>}
+      <p className="text-muted">Mit deinem persönlichen Konto anmelden. Dein iPhone kann das gespeicherte Passwort automatisch ausfüllen.</p>
+      {!signup && import.meta.env.VITE_PASSKEY_ENABLED === 'true' && <button type="button" disabled={busy} onClick={loginWithPasskey} className="hub-button w-full">Mit Face ID / Passkey anmelden</button>}
+      {!signup && import.meta.env.VITE_PASSKEY_ENABLED === 'true' && <p className="text-xs text-muted">Beim ersten Mal nach der Anmeldung unter Familie einen Passkey einrichten.</p>}
       <label className="hub-label">E-Mail<input className="hub-input" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>
       <label className="hub-label">Passwort<input className="hub-input" type="password" autoComplete={signup?'new-password':'current-password'} minLength={signup?12:undefined} required value={password} onChange={e => setPassword(e.target.value)} /></label>
       {error && <p role="alert" className="text-red-500">{error}</p>}
