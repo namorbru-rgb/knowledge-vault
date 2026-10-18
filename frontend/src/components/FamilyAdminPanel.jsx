@@ -24,14 +24,11 @@ export default function FamilyAdminPanel() {
   const [target, setTarget] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
-  const [authMode, setAuthMode] = useState('passkey')
   const [adminId, setAdminId] = useState('')
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [createPassword, setCreatePassword] = useState('')
   const [createConfirm, setCreateConfirm] = useState('')
-  const [createAdminPassword, setCreateAdminPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [problem, setProblem] = useState('')
@@ -54,39 +51,25 @@ export default function FamilyAdminPanel() {
 
   useEffect(() => { refresh() }, [])
 
-  async function verifyWithPasskey() {
-    // Face ID is verified by Supabase Auth. The resulting freshly issued
-    // signed token is checked again by the family-admin Edge Function.
-    const { data, error } = await supabase.auth.signInWithPasskey()
-    if (error) {
-      throw new Error(error.code === 'passkey_disabled'
-        ? 'Face ID ist noch nicht in Supabase aktiviert. Bis dahin ist die Passwort-Reserve verfügbar.'
-        : 'Face ID konnte nicht bestätigt werden. Bitte zuerst unter Familie einen Passkey einrichten.')
-    }
-    if (!data.user || data.user.id !== adminId) {
-      await supabase.auth.signOut()
-      throw new Error('Es wurde ein anderer Account gewählt. Bitte erneut mit deinem eigenen Konto anmelden.')
-    }
-  }
-
   async function savePassword(event) {
     event.preventDefault()
     setProblem(''); setMessage('')
     if (!target || !familyId) return setProblem('Bitte ein Familienmitglied auswählen.')
     if (newPassword !== confirmPassword) return setProblem('Die neuen Passwörter stimmen nicht überein.')
     if (newPassword.length < 12) return setProblem('Mindestens 12 Zeichen für das neue Passwort verwenden.')
+    const member = members.find(m => m.user_id === target && m.family_id === familyId)
+    if (!member || target === adminId) return setProblem('Dieses Konto kann hier nicht geändert werden.')
+    if (!window.confirm(`Neues Passwort für ${member.display_name} wirklich speichern?`)) return
     setBusy(true)
     try {
-      if (authMode === 'passkey') await verifyWithPasskey()
       const response = await adminRequest({
         action: 'set-password', familyId, targetUserId: target,
-        password: newPassword,
-        ...(authMode === 'password' ? { adminPassword } : {}),
+        password: newPassword, confirm: true,
       })
       setMessage(response.auditWarning
         ? 'Passwort geändert. Achtung: Die Protokollierung muss geprüft werden.'
         : 'Passwort geändert. Die Person kann sich sofort mit diesem Passwort anmelden.')
-      setTarget(''); setNewPassword(''); setConfirmPassword(''); setAdminPassword('')
+      setTarget(''); setNewPassword(''); setConfirmPassword('')
     } catch (err) { setProblem(err.message) }
     finally { setBusy(false) }
   }
@@ -96,18 +79,17 @@ export default function FamilyAdminPanel() {
     setProblem(''); setMessage('')
     if (createPassword !== createConfirm) return setProblem('Die Passwörter stimmen nicht überein.')
     if (createPassword.length < 12) return setProblem('Mindestens 12 Zeichen für das neue Passwort verwenden.')
+    if (!window.confirm(`Konto für ${newName.trim()} erstellen?`)) return
     setBusy(true)
     try {
-      if (authMode === 'passkey') await verifyWithPasskey()
       const response = await adminRequest({
         action: 'create-account', familyId, name: newName.trim(),
-        email: newEmail.trim(), password: createPassword,
-        ...(authMode === 'password' ? { adminPassword: createAdminPassword } : {}),
+        email: newEmail.trim(), password: createPassword, confirm: true,
       })
       setMessage(response.auditWarning
         ? 'Konto erstellt. Die Protokollierung muss geprüft werden.'
         : 'Konto erstellt. Die Person kann sich mit ihrer E-Mail und dem vergebenen Passwort anmelden.')
-      setNewName(''); setNewEmail(''); setCreatePassword(''); setCreateConfirm(''); setCreateAdminPassword('')
+      setNewName(''); setNewEmail(''); setCreatePassword(''); setCreateConfirm('')
       await refresh()
     } catch (err) { setProblem(err.message) }
     finally { setBusy(false) }
@@ -118,7 +100,7 @@ export default function FamilyAdminPanel() {
   return <section className="hub-card space-y-4" aria-labelledby="superadmin-heading">
     <div>
       <h2 id="superadmin-heading" className="text-lg font-semibold">Benutzer & Passwörter verwalten</h2>
-      <p className="text-sm text-muted mt-1">Du verwaltest die Konten deiner Familie. Es werden keine Passwort-E-Mails benötigt.</p>
+      <p className="text-sm text-muted mt-1">Du kannst für Familienmitglieder direkt ein Passwort vergeben – ohne Reset-Mail und ohne dein eigenes Passwort erneut einzugeben.</p>
     </div>
     {families.length > 1 && <label className="hub-label">Familie
       <select className="hub-input" value={familyId} onChange={e => setFamilyId(e.target.value)}>
@@ -131,16 +113,9 @@ export default function FamilyAdminPanel() {
           <div className="font-medium">{m.display_name} {m.role === 'admin' && <span className="text-xs text-muted">(Admin)</span>}</div>
           <div className="text-xs text-muted break-all">{m.email || 'E-Mail nicht verfügbar'}</div>
         </div>
-        <button type="button" className="hub-button !px-3 !py-2 text-sm" onClick={() => { setTarget(m.user_id); setProblem(''); setMessage('') }}>Passwort setzen</button>
+        {m.user_id !== adminId && <button type="button" className="hub-button !px-3 !py-2 text-sm" onClick={() => { setTarget(m.user_id); setProblem(''); setMessage('') }}>Passwort setzen</button>}
       </div>)}
     </div>
-    <label className="hub-label">Administrative Bestätigung
-      <select className="hub-input" value={authMode} onChange={event => setAuthMode(event.target.value)}>
-        <option value="passkey">Face ID / Passkey (empfohlen)</option>
-        <option value="password">Eigenes gespeichertes Passwort (Reserve)</option>
-      </select>
-    </label>
-    <p className="text-xs text-muted">Face ID prüft deine Identität auf diesem Gerät; dein eigenes Passwort musst du nicht mehr eintippen.</p>
     {target && <form className="space-y-3 border border-line rounded-xl p-3" onSubmit={savePassword}>
       <h3 className="font-semibold">Neues definitives Passwort für {visible.find(m => m.user_id === target)?.display_name}</h3>
       <p className="text-xs text-muted">Dieses Passwort gehört dem Familienmitglied, nicht deinem eigenen Zugang. Bitte nicht unter deinem eigenen Login im Passwortmanager speichern.</p>
@@ -150,12 +125,9 @@ export default function FamilyAdminPanel() {
       <label className="hub-label">Neues Passwort wiederholen
         <input className="hub-input" type="password" autoComplete="off" required minLength={12} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
       </label>
-      {authMode === 'password' && <label className="hub-label">Dein eigenes gespeichertes Passwort
-        <input className="hub-input" type="password" autoComplete="current-password" required value={adminPassword} onChange={e => setAdminPassword(e.target.value)} />
-      </label>}
       <div className="flex flex-wrap gap-2">
         <button className="hub-button" disabled={busy}>{busy ? 'Bitte warten…' : 'Neues Passwort speichern'}</button>
-        <button type="button" className="px-3 py-2 text-muted" onClick={() => { setTarget(''); setNewPassword(''); setConfirmPassword(''); setAdminPassword('') }}>Abbrechen</button>
+        <button type="button" className="px-3 py-2 text-muted" onClick={() => { setTarget(''); setNewPassword(''); setConfirmPassword('') }}>Abbrechen</button>
       </div>
     </form>}
     <details className="border border-line rounded-xl p-3">
@@ -174,14 +146,11 @@ export default function FamilyAdminPanel() {
         <label className="hub-label">Passwort wiederholen
           <input className="hub-input" required type="password" autoComplete="off" minLength={12} value={createConfirm} onChange={e => setCreateConfirm(e.target.value)} />
         </label>
-        {authMode === 'password' && <label className="hub-label">Dein eigenes gespeichertes Passwort
-          <input className="hub-input" required type="password" autoComplete="current-password" value={createAdminPassword} onChange={e => setCreateAdminPassword(e.target.value)} />
-        </label>}
         <button className="hub-button" disabled={busy}>Konto erstellen</button>
       </form>
     </details>
     {problem && <p className="text-sm text-red-600" role="alert">{problem}</p>}
     {message && <p className="text-sm text-green-700" role="status">{message}</p>}
-    <p className="text-xs text-muted">Passwörter sind nicht auslesbar. Administrative Änderungen werden protokolliert. Als Superadmin kannst du andere Konten durch ein Passwort-Reset übernehmen.</p>
+    <p className="text-xs text-muted">Nur dein Superadmin-Konto mit aktiver Anmeldung darf diese Änderungen ausführen. Jede Änderung wird bestätigt und protokolliert. Falls jemand Zugriff auf dein entsperrtes Gerät oder deine Sitzung erhält, kann diese Person ebenfalls Konten übernehmen. Melde dich auf fremden Geräten immer ab.</p>
   </section>
 }
