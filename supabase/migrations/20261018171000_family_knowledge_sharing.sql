@@ -30,7 +30,7 @@ grant select,insert,delete on public.fh_knowledge_shares to authenticated;
 -- A read-only feed: only owner's own records and Knowledge records explicitly
 -- shared with this particular authenticated family member.
 -- Photos expose only metadata; their private binary files remain owner-only.
-create or replace function public.fh_knowledge_feed(p_limit integer default 50)
+create or replace function public.fh_knowledge_feed(p_limit integer default 50, p_offset integer default 0)
 returns table (
   record_id uuid, record_type text, record_owner uuid, owner_name text,
   title text, summary text, link_url text, created_at timestamptz,
@@ -77,9 +77,10 @@ as $$
     e.title,e.summary,e.link_url,e.created_at,
     (e.record_owner=auth.uid()) as mine
   from entries e order by e.created_at desc nulls last
-  limit greatest(1,least(coalesce(p_limit,50),100));
+  limit greatest(1,least(coalesce(p_limit,50),100))
+  offset greatest(0,coalesce(p_offset,0));
 $$;
-revoke all on function public.fh_knowledge_feed(integer) from public,anon;
+revoke all on function public.fh_knowledge_feed(integer,integer) from public,anon;
 grant execute on function public.fh_knowledge_feed(integer) to authenticated;
 comment on table public.fh_knowledge_shares is
   'Owner-controlled Knowledge-only share. Never authorises health records or private Storage objects.';
