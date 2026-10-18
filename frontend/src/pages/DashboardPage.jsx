@@ -73,7 +73,6 @@ export default function DashboardPage(){
       {loading?<p className="text-muted">Lade Einträge…</p>:filtered.length ? <div className="space-y-2">
         {filtered.map(row=>{
           const url=safeUrl(row.link_url)
-          const note=row.record_type==='note'
           const showDetails=expanded[row.record_id]
           return <article key={row.record_type+row.record_id} className="hub-knowledge-entry">
             <div className="flex items-center justify-between gap-2 text-xs text-muted">
@@ -81,10 +80,9 @@ export default function DashboardPage(){
               <span>{new Date(row.created_at).toLocaleDateString('de-CH')}</span>
             </div>
             <h3 className="font-semibold mt-1 break-words">{row.title||'(Ohne Titel)'}</h3>
-            {row.summary && (!note || showDetails) && <p className="text-sm text-muted mt-1 whitespace-pre-wrap break-words">
+            {row.summary&&<p className="text-sm text-muted mt-1 whitespace-pre-wrap break-words">
               {showDetails?row.summary:row.summary.slice(0,180)}{!showDetails&&row.summary.length>180?'…':''}
             </p>}
-            {note&&row.summary&&!showDetails&&row.summary.length>180&&<p className="text-sm text-muted mt-1">{row.summary.slice(0,180)}…</p>}
             <div className="flex gap-3 mt-2 items-center text-sm">
               {url&&<a className="text-blue-600 font-semibold" href={url} target="_blank" rel="noopener noreferrer">Quelle öffnen</a>}
               {row.summary&&row.summary.length>180&&<button className="text-blue-600" type="button"
@@ -95,7 +93,7 @@ export default function DashboardPage(){
         })}
         {filtered.length===limit&&limit<feed.length&&<button className="hub-secondary-button w-full" type="button"
           onClick={()=>setLimit(n=>n+20)}>Weitere Einträge anzeigen</button>}
-        {limit>=100&&feed.length>=100&&<p className="text-xs text-muted">Für ältere Einträge die Eintragssuche verwenden; weitere Archivseiten werden nachgeladen.</p>}
+        {limit>=100&&feed.length>=100&&<p className="text-xs text-muted">Es gibt weitere ältere Einträge. Sie werden bei Bedarf geladen.</p>}
       </div> : <div className="bg-elevated rounded-xl p-4">
         <p className="font-semibold">Hier ist noch nichts freigegeben.</p>
         <p className="text-sm text-muted mt-1">Katarina kann ihre Knowledge-Einträge mit dir teilen. Die Freigabe nimmt sie einmal in ihrem eigenen Konto vor.</p>
@@ -104,7 +102,7 @@ export default function DashboardPage(){
     <details className="hub-more" open={showShare} onToggle={e=>setShowShare(e.currentTarget.open)}>
       <summary>Meine Knowledge-Einträge mit der Familie teilen</summary>
       <div className="space-y-3 mt-3">
-        <p className="text-sm text-muted">Du entscheidest, welche erwachsenen Familienmitglieder deine Notizen, Links, Video-Titel und Foto-Beschreibungen lesen können. Gesundheitsdaten und private Bilddateien werden dadurch nicht freigegeben.</p>
+        <p className="text-sm text-muted">Du entscheidest, welche erwachsenen Familienmitglieder deine Notizen, Links, Video-Titel und Foto-Beschreibungen lesen können. Daten aus dem Gesundheitsmodul und private Bilddateien werden dadurch nicht freigegeben. Persönliche Informationen in Knowledge-Notizen gehören hingegen zu den freigegebenen Inhalten.</p>
         {recipients.map(m=>{
           const shared=shares.some(s=>s.owner_id===userId&&s.recipient_id===m.user_id)
           return <div key={m.user_id} className="flex items-center justify-between gap-3 border border-line rounded-xl p-3">
