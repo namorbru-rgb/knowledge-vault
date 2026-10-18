@@ -36,7 +36,8 @@ Deno.serve(async req => {
     if (!bearer.startsWith('Bearer ') || req.headers.has('x-api-key')) return reply({ error: 'Anmeldung erforderlich.' }, 401)
 
     // Verifies the real Auth user and an active, non-revoked session.
-    const { data: verified, error: verifyError } = await service.auth.getUser(bearer.slice(7))
+    const token = bearer.slice(7)
+    const { data: verified, error: verifyError } = await service.auth.getUser(token)
     const user = verified.user
     if (verifyError || !user) return reply({ error: 'Anmeldung erforderlich.' }, 401)
     if (user.id !== SUPERADMIN_ID) return reply({ error: 'Keine Berechtigung.' }, 403)
@@ -72,19 +73,35 @@ Deno.serve(async req => {
     const familyId = String(input.familyId || '')
     if (!uuidPattern.test(familyId) || !allowedFamilies.has(familyId)) return reply({ error: 'Familie nicht freigegeben.' }, 403)
 
-    // Strongly re-authenticate the operator before a privileged write.
-    // The operator password is neither persisted nor included in any log.
-    const adminPassword = input.adminPassword
-    if (typeof adminPassword !== 'string' || !adminPassword || adminPassword.length > 256 || !user.email)
-      return reply({ error: 'Eigenes Passwort zur Bestätigung eingeben.' }, 400)
-    const checkClient = createClient(url, anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
-    const { data: check, error: checkError } = await checkClient.auth.signInWithPassword({
-      email: user.email, password: adminPassword,
-    })
-    if (checkError || check.user?.id !== user.id) return reply({ error: 'Dein eigenes Passwort stimmt nicht.' }, 403)
-    await checkClient.auth.signOut({ scope: 'local' }).catch(() => {})
+    // Privileged writes require a fresh and server-verifiable authentication ceremony.
+    // A Supabase-signed passkey JWT (WebAuthn user verification) replaces retyping
+    // the administrator password. Password reauthentication remains the fallback.
+    const recentPasskey = (() => {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+        const now = Math.floor(Date.now() / 1000)
+        return payload.sub === user.id &&
+          typeof payload.iat === 'number' && payload.iat >= now - 180 && payload.iat <= now + 30 &&
+          Array.isArray(payload.amr) &&
+          payload.amr.some((entry: {method?: string, timestamp?: number}) =>
+            entry?.method === 'passkey' &&
+            typeof entry.timestamp === 'number' &&
+            entry.timestamp >= now - 180 && entry.timestamp <= now + 30)
+      } catch { return false }
+    })()
+    if (!recentPasskey) {
+      const adminPassword = input.adminPassword
+      if (typeof adminPassword !== 'string' || !adminPassword || adminPassword.length > 256 || !user.email)
+        return reply({ error: 'Bitte Face ID verwenden oder das eigene Passwort bestätigen.' }, 403)
+      const checkClient = createClient(url, anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const { data: check, error: checkError } = await checkClient.auth.signInWithPassword({
+        email: user.email, password: adminPassword,
+      })
+      if (checkError || check.user?.id !== user.id) return reply({ error: 'Dein eigenes Passwort stimmt nicht.' }, 403)
+      await checkClient.auth.signOut({ scope: 'local' }).catch(() => {})
+    }
 
     if (action === 'set-password') {
       const targetId = String(input.targetUserId || '')
