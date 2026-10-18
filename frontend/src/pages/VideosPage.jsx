@@ -29,6 +29,10 @@ function displayTitle(video) {
 export default function VideosPage() {
   const [videos, setVideos] = useState([])
   const [members, setMembers] = useState([])
+  const [shares, setShares] = useState([])
+  const [requests, setRequests] = useState([])
+  const [ownVideoCount, setOwnVideoCount] = useState(0)
+  const [sharingBusy, setSharingBusy] = useState('')
   const [userId, setUserId] = useState('')
   const [owner, setOwner] = useState('all')
   const [total, setTotal] = useState(0)
@@ -41,6 +45,41 @@ export default function VideosPage() {
   const [brokenImages, setBrokenImages] = useState(() => new Set())
   const requestNumber = useRef(0)
   const currentUser = useRef('')
+
+  async function loadSharing(id = currentUser.current) {
+    const [grants, pending, own] = await Promise.all([
+      family.videoShares(), family.videoShareRequests(),
+      family.knowledgeVideos(1, 0, id),
+    ])
+    setShares(grants || [])
+    setRequests(pending || [])
+    setOwnVideoCount(own?.[0]?.total_count || 0)
+  }
+
+  async function changeAccess(action, otherId, otherName) {
+    if (sharingBusy) return
+    const granting=action === 'approve' || action === 'grant'
+    if (granting && !window.confirm(
+      `Alle deine bestehenden und künftigen Videos für ${otherName} zum Lesen freigeben? Andere Knowledge-Inhalte und Gesundheitsdaten bleiben privat.`
+    )) return
+    setSharingBusy(otherId)
+    setError('')
+    setNotice('')
+    try {
+      if (action === 'request') await family.requestVideos(otherId)
+      else if (action === 'cancel') await family.cancelVideoRequest(otherId)
+      else if (action === 'deny') await family.denyVideoRequest(otherId)
+      else if (granting) await family.shareMyVideos(otherId)
+      else if (action === 'revoke') await family.revokeMyVideos(otherId)
+      await loadSharing()
+      await fetchVideos(owner, 0)
+      setNotice(granting ? `Deine Videos sind jetzt für ${otherName} freigegeben.` :
+        action === 'request' ? `Anfrage an ${otherName} gesendet. Die Person muss den Zugriff bestätigen.` :
+        action === 'revoke' ? `Video-Freigabe für ${otherName} aufgehoben.` : 'Gespeichert.')
+    } catch (problem) {
+      setError(problem.message || 'Die Freigabe konnte nicht geändert werden.')
+    } finally { setSharingBusy('') }
+  }
 
   async function fetchVideos(selected = 'all', offset = 0, id = currentUser.current) {
     const requestId = ++requestNumber.current
@@ -71,6 +110,7 @@ export default function VideosPage() {
       currentUser.current = id
       setMembers(list || [])
       await fetchVideos('all',0,id)
+      await loadSharing(id)
     }).catch(problem => {
       if (current) { setError(problem.message || 'Videos nicht verfügbar.'); setLoading(false) }
     })
@@ -114,6 +154,11 @@ export default function VideosPage() {
   )).filter((m,index,all) => all.findIndex(x => x.user_id === m.user_id) === index)
   const selectedName = related.find(m => m.user_id === owner)?.display_name
   const noSharedVideos = owner !== 'mine' && (owner === 'all' || !!selectedName)
+  const pendingForMe=requests.filter(request=>request.owner_id===userId)
+  const pendingFromMe=otherId=>requests.some(request=>request.requester_id===userId&&request.owner_id===otherId)
+  const grantedFromMe=otherId=>shares.some(share=>share.owner_id===userId&&share.recipient_id===otherId)
+  const grantedToMe=otherId=>shares.some(share=>share.owner_id===otherId&&share.recipient_id===userId)
+  const memberName=memberId=>related.find(person=>person.user_id===memberId)?.display_name||'Familienmitglied'
 
   return <div className="hub-page space-y-5">
     <header>
@@ -138,6 +183,47 @@ export default function VideosPage() {
     </section>
 
     {error && <p className="hub-feedback-error" role="alert">{error}</p>}
+    {pendingForMe.length>0&&<section className="hub-card space-y-3" aria-label="Offene Video-Freigabeanfragen">
+      <h2 className="font-semibold text-lg">Jemand möchte deine Videos sehen</h2>
+      {pendingForMe.map(request=><div key={request.requester_id}
+        className="rounded-xl border border-line p-3 space-y-2">
+        <p className="font-semibold">{memberName(request.requester_id)} fragt nach Zugriff auf deine {ownVideoCount.toLocaleString('de-CH')} Videos.</p>
+        <p className="text-sm text-muted">Nur Videotitel, Beschreibungen und Quellen werden freigegeben – keine Gesundheitsakten, Notizen oder privaten Dateien.</p>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" className="hub-button" disabled={!!sharingBusy}
+            onClick={()=>changeAccess('approve',request.requester_id,memberName(request.requester_id))}>Zugriff erlauben</button>
+          <button type="button" className="hub-secondary-button" disabled={!!sharingBusy}
+            onClick={()=>changeAccess('deny',request.requester_id,memberName(request.requester_id))}>Ablehnen</button>
+        </div>
+      </div>)}
+    </section>}
+
+    {related.length>0&&<section className="hub-card space-y-3" aria-label="Videofreigaben verwalten">
+      <h2 className="font-semibold text-lg">Videos in der Familie teilen</h2>
+      <p className="text-sm text-muted">Die Videos bleiben im ursprünglichen Konto. Jedes Familienmitglied kann den Lesezugriff selbst erteilen oder widerrufen.</p>
+      {related.map(member=>{
+        const granted=grantedFromMe(member.user_id)
+        const received=grantedToMe(member.user_id)
+        const waiting=pendingFromMe(member.user_id)
+        return <div key={member.user_id} className="rounded-xl border border-line p-3 space-y-2">
+          <div className="font-semibold">{member.display_name}</div>
+          <p className="text-sm text-muted">{received ? 'Du darfst die Videos dieser Person sehen.' :
+            waiting ? 'Deine Zugriffsanfrage wartet auf Bestätigung.' : 'Videos dieser Person sind noch nicht für dich freigegeben.'}</p>
+          <div className="flex flex-wrap gap-2">
+            {!received&&!waiting&&<button type="button" className="hub-button" disabled={!!sharingBusy}
+              onClick={()=>changeAccess('request',member.user_id,member.display_name)}>Freigabe anfragen</button>}
+            {!received&&waiting&&<button type="button" className="hub-secondary-button" disabled={!!sharingBusy}
+              onClick={()=>changeAccess('cancel',member.user_id,member.display_name)}>Anfrage zurückziehen</button>}
+            {granted?<button type="button" className="hub-secondary-button" disabled={!!sharingBusy}
+              onClick={()=>changeAccess('revoke',member.user_id,member.display_name)}>Meine Video-Freigabe beenden</button>:
+            <button type="button" className="hub-secondary-button" disabled={!!sharingBusy}
+              onClick={()=>changeAccess('grant',member.user_id,member.display_name)}>Meine Videos freigeben</button>}
+          </div>
+        </div>
+      })}
+      <button type="button" className="text-sm text-blue-600 py-2" disabled={!!sharingBusy}
+        onClick={async()=>{await loadSharing();await fetchVideos(owner,0)}}>Freigaben aktualisieren</button>
+    </section>}
     {notice && <p className="hub-feedback-success" role="status">{notice}</p>}
 
     <details className="hub-more">
@@ -161,8 +247,7 @@ export default function VideosPage() {
               : 'In deinem aktuellen Konto liegen keine Videos. Die vorhandenen Familienvideos benötigen zuerst eine Freigabe durch das jeweilige Konto.'}
           </p>
           <p className="text-sm text-muted">
-            Dafür im betreffenden Konto unter <strong>Knowledge → Meine Knowledge-Einträge mit der Familie teilen</strong> die Freigabe aktivieren.
-            Danach erscheinen die Videos hier automatisch.
+            Bitte oben auf <strong>«Freigabe anfragen»</strong> drücken. Anschliessend muss die Person in ihrem Family Hub unter «Videos» den Zugriff bestätigen.
           </p>
           <Link to="/knowledge" className="hub-secondary-button">Zu Knowledge und Freigaben</Link>
         </> : <p className="text-sm text-muted">In deinem aktuellen Konto wurden noch keine Videos gespeichert.</p>}
