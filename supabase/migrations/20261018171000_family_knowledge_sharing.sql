@@ -81,6 +81,6 @@ as $$
   offset greatest(0,coalesce(p_offset,0));
 $$;
 revoke all on function public.fh_knowledge_feed(integer,integer) from public,anon;
-grant execute on function public.fh_knowledge_feed(integer) to authenticated;
+grant execute on function public.fh_knowledge_feed(integer,integer) to authenticated;
 comment on table public.fh_knowledge_shares is
   'Owner-controlled Knowledge-only share. Never authorises health records or private Storage objects.';
