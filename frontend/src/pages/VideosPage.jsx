@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { family } from '../lib/family'
+import { supabase } from '../lib/supabase'
 import { getActivePersonId } from '../lib/person'
 
 const PAGE_SIZE = 36
@@ -11,6 +12,16 @@ function safeSource(url) {
     const parsed = new URL(url)
     return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null
   } catch { return null }
+}
+
+function facebookEmbed(raw) {
+  try {
+    const url=new URL(raw)
+    if(!['www.facebook.com','facebook.com','m.facebook.com'].includes(url.hostname))return null
+    if(!url.pathname.startsWith('/share/') && !url.pathname.includes('/videos/') &&
+       !url.pathname.includes('/reel/'))return null
+    return 'https://www.facebook.com/plugins/video.php?href='+encodeURIComponent(url.href)+'&show_text=false&width=560'
+  }catch{return null}
 }
 
 function displayTitle(video) {
@@ -43,6 +54,9 @@ export default function VideosPage() {
   const [notice, setNotice] = useState('')
   const [url, setUrl] = useState('')
   const [brokenImages, setBrokenImages] = useState(() => new Set())
+  const [embedOpen, setEmbedOpen] = useState(() => new Set())
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewMessage, setPreviewMessage] = useState('')
   const requestNumber = useRef(0)
   const currentUser = useRef('')
 
@@ -123,6 +137,24 @@ export default function VideosPage() {
     setTotal(0)
     setNotice('')
     fetchVideos(next,0)
+  }
+
+  async function refreshPreviews() {
+    if(previewBusy)return
+    const candidates=videos.filter(v=>v.mine&&!v.thumbnail_url).slice(0,8)
+    if(!candidates.length){setPreviewMessage('Für die sichtbaren eigenen Videos sind keine fehlenden Vorschaubilder mehr vorhanden.');return}
+    setPreviewBusy(true);setPreviewMessage('')
+    try{
+      const {data,error}=await supabase.functions.invoke('video-preview',{
+        body:{ids:candidates.map(v=>v.video_id)},
+      })
+      if(error)throw error
+      const updated=(data?.results||[]).filter(x=>x.status==='updated').length
+      const unavailable=(data?.results||[]).filter(x=>x.status==='unavailable').length
+      setPreviewMessage(`${updated} Vorschaubilder ergänzt. ${unavailable} konnten vom Anbieter nicht abgerufen werden.`)
+      await fetchVideos(owner,0)
+    }catch{setPreviewMessage('Der Vorschau-Abgleich ist derzeit nicht verfügbar.')}
+    finally{setPreviewBusy(false)}
   }
 
   async function addVideo(event) {
@@ -239,6 +271,13 @@ export default function VideosPage() {
     </details>
 
     {loading ? <p className="text-muted">Videos werden geladen…</p> : <>
+      {videos.some(v=>v.mine&&!v.thumbnail_url)&&<section className="hub-card space-y-2">
+        <h2 className="font-semibold">Fehlende Videovorschauen</h2>
+        <p className="text-sm text-muted">Wir versuchen die Vorschaubilder und Titel beim Anbieter abzurufen. Facebook stellt diese Daten nicht für alle Videos bereit.</p>
+        <button type="button" className="hub-button" disabled={previewBusy}
+          onClick={refreshPreviews}>{previewBusy?'Vorschauen werden geprüft…':'Vorschaubilder nachladen (8 Videos)'}</button>
+        {previewMessage&&<p role="status" className="text-sm text-muted">{previewMessage}</p>}
+      </section>}
       {!busy && videos.length === 0 && <section className="hub-card space-y-3">
         <h2 className="font-semibold">Hier sind noch keine Videos sichtbar</h2>
         {noSharedVideos ? <>
@@ -259,13 +298,15 @@ export default function VideosPage() {
           const own = video.mine
           const title = displayTitle(video)
           const preview = video.thumbnail_url && !brokenImages.has(video.video_id)
+          const embed=facebookEmbed(video.source_url)
+          const opened=embedOpen.has(video.video_id)
           return <article className="hub-card !p-3 sm:!p-4" key={video.video_id}>
             <div className="flex gap-3 items-start">
               <div className="w-24 h-16 rounded-xl bg-elevated shrink-0 flex items-center justify-center overflow-hidden">
                 {preview ? <img src={video.thumbnail_url} alt="" loading="lazy"
-                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer" className="w-full h-full object-cover"
                   onError={()=>setBrokenImages(previous => new Set([...previous,video.video_id]))} /> :
-                  <span className="text-2xl text-muted">▶</span>}
+                  <span className="text-xs text-muted text-center px-2">Keine Vorschau</span>}
               </div>
               <div className="flex-1 min-w-0 space-y-1">
                 {own ? <Link to={`/videos/${video.video_id}`}
@@ -280,8 +321,12 @@ export default function VideosPage() {
                 </p>
                 {video.description && <p className="text-xs text-muted break-words line-clamp-2">{video.description}</p>}
                 <div className="flex flex-wrap items-center gap-3 pt-1">
-                  {source && !own && <a href={source} target="_blank" rel="noopener noreferrer"
-                    className="text-sm font-medium text-blue-600">Video öffnen ↗</a>}
+                  {source && <a href={source} target="_blank" rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600">Originalvideo öffnen ↗</a>}
+                  {embed && !preview && <button type="button" className="text-sm font-medium text-blue-600"
+                    onClick={()=>setEmbedOpen(previous=>{
+                      const next=new Set(previous);if(next.has(video.video_id))next.delete(video.video_id);else next.add(video.video_id);return next
+                    })}>{opened?'Vorschau schliessen':'Facebook-Vorschau versuchen'}</button>}
                   {own && <span className="text-xs text-muted">{video.transcript_status==='done'?'Transkribiert':
                     video.transcript_status==='processing'?'In Verarbeitung':'Gespeichert'}</span>}
                   {own && <button type="button" disabled={busy}
@@ -289,6 +334,12 @@ export default function VideosPage() {
                 </div>
               </div>
             </div>
+            {opened&&embed&&<div className="mt-3 space-y-2">
+              <p className="text-xs text-muted">Facebook-Inhalte werden erst nach deinem Klick geladen. Private Videos können eine Anmeldung bei Facebook erfordern.</p>
+              <iframe title={`Facebook-Vorschau: ${title}`} src={embed} loading="lazy"
+                className="w-full rounded-xl border border-line" style={{height:315}}
+                allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+            </div>}
           </article>
         })}
         {videos.length < total && <button type="button" disabled={busy}
