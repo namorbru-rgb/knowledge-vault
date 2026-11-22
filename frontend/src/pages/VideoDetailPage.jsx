@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { colorClass } from './SettingsPage'
 import { PersonBadge } from '../components/PersonFilter'
@@ -17,6 +17,7 @@ function fallbackPreview(url) {
 
 export default function VideoDetailPage() {
   const { id } = useParams()
+  const { hash } = useLocation()
   const [video, setVideo] = useState(null)
   const [categories, setCategories] = useState([])
   const [persons, setPersons] = useState([])
@@ -46,6 +47,12 @@ export default function VideoDetailPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (video && !loading && hash.startsWith('#transkript-')) {
+      document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'center' })
+    }
+  }, [hash, loading, video])
 
   if (loading) return <div className="p-8 text-muted">Lädt...</div>
   if (!video) return <div className="p-8 text-red-600 dark:text-red-400">Video nicht gefunden</div>
@@ -181,7 +188,7 @@ export default function VideoDetailPage() {
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {filteredSegments.map(seg => (
-              <div key={seg.id} className={`flex gap-3 p-3 rounded-lg ${search && seg.text.toLowerCase().includes(search.toLowerCase()) ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50' : 'bg-surface border border-line'}`}>
+              <div id={`transkript-${seg.id}`} key={seg.id} className={`flex gap-3 p-3 rounded-lg ${hash === `#transkript-${seg.id}` || search ? 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50' : 'bg-surface border border-line'}`}>
                 <span className="text-xs text-blue-600 dark:text-blue-400 font-mono whitespace-nowrap pt-0.5">{formatTime(seg.start_time)}</span>
                 <p className="text-sm text-fg">{seg.text}</p>
               </div>

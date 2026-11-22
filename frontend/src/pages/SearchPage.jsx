@@ -14,7 +14,7 @@ const typeLabels = { video: 'Video', video_segment: 'Transkript', link: 'Link', 
 
 function typeLink(result) {
   if (result.type === 'video') return `/videos/${result.id}`
-  if (result.type === 'video_segment') return `/videos/${result.video_id}`
+  if (result.type === 'video_segment') return `/videos/${result.video_id}#transkript-${result.id}`
   if (result.type === 'link') return null
   if (result.type === 'photo') return '/photos'
   if (result.type === 'note') return '/notes'
@@ -32,29 +32,43 @@ export default function SearchPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
-  const [mode, setMode] = useState('')
-  const [searched, setSearched] = useState(false)
+  const [submittedQuery, setSubmittedQuery] = useState('')
+  const [hasMore, setHasMore] = useState(false)
+  const [error, setError] = useState(false)
 
-  async function doSearch(e) {
-    e.preventDefault()
-    if (!query.trim()) return
+  async function search(text, offset = 0) {
     setLoading(true)
-    setSearched(true)
+    setError(false)
+    if (!offset) {
+      setSubmittedQuery(text)
+      setResults([])
+      setHasMore(false)
+    }
     try {
-      const data = await api.search(query.trim())
-      setResults(data.results || [])
-      setMode(data.mode || '')
-    } catch (err) { console.error(err) }
-    finally { setLoading(false) }
+      const data = await api.search(text, undefined, offset)
+      setResults(previous => offset ? [...previous, ...data.results] : data.results)
+      setHasMore(data.has_more)
+    } catch {
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function doSearch(event) {
+    event.preventDefault()
+    if (!loading && query.trim()) search(query.trim())
   }
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold text-fg mb-4 sm:mb-6">Suche</h2>
+      <h2 className="text-2xl font-bold text-fg mb-4 sm:mb-6">Volltextsuche</h2>
 
       <form onSubmit={doSearch} className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-6 sm:mb-8">
         <input
-          type="text"
+          type="search"
+          aria-label="Suchbegriffe"
+          maxLength={200}
           placeholder="Wissen durchsuchen…"
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -69,18 +83,20 @@ export default function SearchPage() {
         </button>
       </form>
 
-      {searched && (
+      {submittedQuery && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-muted text-sm">
-              {results.length} Ergebnisse {mode && <span className="text-subtle">({mode}-Suche)</span>}
+              {results.length} {hasMore ? "angezeigte Treffer" : "Treffer"}
             </p>
           </div>
-          {results.length === 0 && !loading && (
-            <p className="text-muted">Keine Ergebnisse für „{query}"</p>
+          {error && <p role="alert" className="mb-4 text-red-600">Die Suche ist gerade fehlgeschlagen. Bitte erneut versuchen.</p>}
+          {results.length === 0 && !loading && !error && (
+            <p className="text-muted">Keine Treffer für «{submittedQuery}»</p>
           )}
           <div className="space-y-3">
-            {results.map((r, i) => {
+            {results.map(r => {
+              const key = `${r.type}-${r.id}`
               const link = typeLink(r)
               const linkHref = r.type === 'link' ? r.url : null
               const content = (
@@ -95,26 +111,28 @@ export default function SearchPage() {
                         <p className="text-xs text-blue-600 dark:text-blue-400 font-mono mt-0.5">@ {formatTime(r.start_time)}</p>
                       )}
                       {r.content && <p className="text-sm text-muted mt-1 line-clamp-3">{r.content}</p>}
-                      {r.similarity != null && (
-                        <p className="text-xs text-subtle mt-1">{Math.round(r.similarity * 100)}% Übereinstimmung</p>
-                      )}
                     </div>
                   </div>
                 </div>
               )
-              if (link) return <Link key={i} to={link}>{content}</Link>
-              if (linkHref) return <a key={i} href={linkHref} target="_blank" rel="noopener noreferrer">{content}</a>
-              return <div key={i}>{content}</div>
+              if (link) return <Link key={key} to={link}>{content}</Link>
+              if (linkHref) return <a key={key} href={linkHref} target="_blank" rel="noopener noreferrer">{content}</a>
+              return <div key={key}>{content}</div>
             })}
           </div>
+          {hasMore && (
+            <button type="button" disabled={loading} onClick={() => search(submittedQuery, results.length)}
+              className="mt-4 rounded-lg border border-line px-4 py-2 text-fg disabled:opacity-50">
+              {loading ? 'Lädt …' : 'Weitere Treffer'}
+            </button>
+          )}
         </div>
       )}
 
-      {!searched && (
+      {!submittedQuery && (
         <div className="text-center py-16">
-          <p className="text-6xl mb-4">🔍</p>
-          <p className="text-muted">Alle Videos, Links, Fotos und Notizen durchsuchen</p>
-          <p className="text-subtle text-sm mt-2">Video-Transkripte werden mitdurchsucht, sobald sie verarbeitet sind.</p>
+          <p className="text-muted">Durchsucht Transkripte, Videos, gespeicherte Artikel, Fototexte und Notizen.</p>
+          <p className="text-subtle text-sm mt-2">Setze eine Wortfolge in Anführungszeichen, um sie als Phrase zu suchen.</p>
         </div>
       )}
     </div>
